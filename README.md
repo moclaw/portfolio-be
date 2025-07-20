@@ -1,4 +1,4 @@
-# Portfolio Backend API
+*# Portfolio Backend API
 
 A modern Go-based REST API backend for portfolio management with file upload capabilities using SQLite and S3-compatible storage.
 
@@ -93,15 +93,19 @@ portfolio-be/
    git clone https://github.com/Moclaw/portfolio-be
    cd portfolio-be
    ```
+2. **Seed data**: 
+   ```bash
+   go run cmd/seed/main.go
+   ```
 
-2. **Run the application**:
+3. **Run the application**:
    ```bash
    make dev
    ```
 
-3. **The API will be available at**: `http://localhost:5303`
+4. **The API will be available at**: `http://localhost:5303`
 
-4. **Access Swagger Documentation**:
+5. **Access Swagger Documentation**:
    - Interactive API Docs: `http://localhost:5303/swagger/index.html`
    - JSON Specification: `http://localhost:5303/swagger/doc.json`
 
@@ -145,15 +149,15 @@ make deps
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Server port | `5303` |
-| `DATABASE_URL` | SQLite database file path | `portfolio.db` |
-| `S3_ENDPOINT` | S3 endpoint URL | `http://localhost:4566` |
-| `S3_REGION` | S3 region | `us-east-1` |
-| `S3_BUCKET` | S3 bucket name | `portfolio-bucket` |
-| `S3_ACCESS_KEY_ID` | S3 access key | `test` |
-| `S3_SECRET_ACCESS_KEY` | S3 secret key | `test` |
+| Variable               | Description               | Default                 |
+| ---------------------- | ------------------------- | ----------------------- |
+| `PORT`                 | Server port               | `5303`                  |
+| `DATABASE_URL`         | SQLite database file path | `portfolio.db`          |
+| `S3_ENDPOINT`          | S3 endpoint URL           | `http://localhost:4566` |
+| `S3_REGION`            | S3 region                 | `us-east-1`             |
+| `S3_BUCKET`            | S3 bucket name            | `portfolio-bucket`      |
+| `S3_ACCESS_KEY_ID`     | S3 access key             | `test`                  |
+| `S3_SECRET_ACCESS_KEY` | S3 secret key             | `test`                  |
 
 ## API Usage Examples
 
@@ -503,3 +507,4 @@ curl -X DELETE http://localhost:5303/content/1
 ### Kết Luận
 
 Bạn đã hoàn thành việc tạo một dự án Golang với SQLite, tích hợp LocalStack S3 và API CRUD cho nội dung. Bạn có thể mở rộng thêm các tính năng khác theo nhu cầu của mình.
+*
