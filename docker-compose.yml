@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Portfolio Backend API
+  portfolio-backend:
+    build:
+      context: ./portfolio-be
+      dockerfile: Dockerfile
+    container_name: portfolio-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - HOST=0.0.0.0
+      - DATABASE_URL=/app/data/portfolio.db
+      - S3_ENDPOINT=http://localhost:4566
+      - S3_REGION=us-east-1
+      - S3_BUCKET=portfolio-bucket
+      - S3_ACCESS_KEY_ID=test
+      - S3_SECRET_ACCESS_KEY=test
+    volumes:
+      - portfolio_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/portfolio"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - portfolio-network
+
+  # Portfolio Frontend
+  portfolio-frontend:
+    build:
+      context: ./portfolio
+      dockerfile: Dockerfile
+    container_name: portfolio-frontend
+    ports:
+      - "5300:5300"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+      - NODE_ENV=production
+    depends_on:
+      portfolio-backend:
+        condition: service_healthy
+    networks:
+      - portfolio-network
+
+networks:
+  portfolio-network:
+    driver: bridge
+
+volumes:
+  portfolio_data:
+    driver: local
