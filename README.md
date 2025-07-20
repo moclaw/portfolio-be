@@ -90,25 +90,20 @@ portfolio-be/
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Moclaw/portfolio-be
    cd portfolio-be
    ```
 
-2. **Install dependencies**:
+2. **Run the application**:
    ```bash
-   go mod download
+   make dev
    ```
 
-3. **Run the application**:
-   ```bash
-   go run server/main.go
-   ```
+3. **The API will be available at**: `http://localhost:5303`
 
-4. **The API will be available at**: `http://localhost:8080`
-
-5. **Access Swagger Documentation**:
-   - Interactive API Docs: `http://localhost:8080/swagger/index.html`
-   - JSON Specification: `http://localhost:8080/swagger/doc.json`
+4. **Access Swagger Documentation**:
+   - Interactive API Docs: `http://localhost:5303/swagger/index.html`
+   - JSON Specification: `http://localhost:5303/swagger/doc.json`
 
 ### Using Make Commands
 
@@ -145,14 +140,14 @@ make deps
    ```
 
 2. **Access the application**:
-   - API: `http://localhost:8080`
+   - API: `http://localhost:5303`
    - LocalStack S3: `http://localhost:4566`
 
 ## Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PORT` | Server port | `8080` |
+| `PORT` | Server port | `5303` |
 | `DATABASE_URL` | SQLite database file path | `portfolio.db` |
 | `S3_ENDPOINT` | S3 endpoint URL | `http://localhost:4566` |
 | `S3_REGION` | S3 region | `us-east-1` |
@@ -164,7 +159,7 @@ make deps
 
 ### Create Content
 ```bash
-curl -X POST http://localhost:8080/api/v1/contents \
+curl -X POST http://localhost:5303/api/v1/contents \
   -H "Content-Type: application/json" \
   -d '{
     "title": "My Portfolio Project",
@@ -178,13 +173,13 @@ curl -X POST http://localhost:8080/api/v1/contents \
 
 ### Upload File
 ```bash
-curl -X POST http://localhost:8080/api/v1/uploads \
+curl -X POST http://localhost:5303/api/v1/uploads \
   -F "file=@/path/to/your/file.jpg"
 ```
 
 ### Get All Contents
 ```bash
-curl "http://localhost:8080/api/v1/contents?page=1&limit=10&category=web-development"
+curl "http://localhost:5303/api/v1/contents?page=1&limit=10&category=web-development"
 ```
 
 ## Development
@@ -201,7 +196,7 @@ This project uses Swagger/OpenAPI for API documentation. To work with the API do
    ```
 
 2. **Access Interactive Documentation**:
-   - Visit `http://localhost:8080/swagger/index.html` after starting the server
+   - Visit `http://localhost:5303/swagger/index.html` after starting the server
    - Test APIs directly from the browser interface
 
 3. **Adding Swagger Comments**:
@@ -461,7 +456,7 @@ func main() {
     router := gin.Default()
     routes.SetupRoutes(router, db, s3Service)
 
-    router.Run(":8080")
+    router.Run(":5303")
 }
 ```
 
@@ -487,22 +482,22 @@ Bạn có thể sử dụng Postman hoặc curl để kiểm tra các API CRUD:
 
 - **Tạo nội dung**:
 ```bash
-curl -X POST http://localhost:8080/content -F "title=My Title" -F "body=My Body" -F "file=@path/to/your/file"
+curl -X POST http://localhost:5303/content -F "title=My Title" -F "body=My Body" -F "file=@path/to/your/file"
 ```
 
 - **Lấy nội dung**:
 ```bash
-curl http://localhost:8080/content/1
+curl http://localhost:5303/content/1
 ```
 
 - **Cập nhật nội dung**:
 ```bash
-curl -X PUT http://localhost:8080/content/1 -d '{"title": "Updated Title", "body": "Updated Body"}'
+curl -X PUT http://localhost:5303/content/1 -d '{"title": "Updated Title", "body": "Updated Body"}'
 ```
 
 - **Xóa nội dung**:
 ```bash
-curl -X DELETE http://localhost:8080/content/1
+curl -X DELETE http://localhost:5303/content/1
 ```
 
 ### Kết Luận
