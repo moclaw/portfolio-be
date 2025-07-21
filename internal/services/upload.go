@@ -24,7 +24,8 @@ func NewUploadService(repo *repository.UploadRepository, s3Service *S3Service) *
 func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHeader) (*models.UploadResponse, error) {
 	// Validate file type (optional - you can add more restrictions)
 	allowedTypes := []string{
-		"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp",
+		"image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/svg+xml",
+		"video/mp4", "video/webm", "video/ogg", "video/avi", "video/quicktime",
 		"application/pdf", "text/plain", "application/msword",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 	}
@@ -40,6 +41,20 @@ func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHe
 			contentType = "image/png"
 		case "gif":
 			contentType = "image/gif"
+		case "webp":
+			contentType = "image/webp"
+		case "svg":
+			contentType = "image/svg+xml"
+		case "mp4":
+			contentType = "video/mp4"
+		case "webm":
+			contentType = "video/webm"
+		case "ogg":
+			contentType = "video/ogg"
+		case "avi":
+			contentType = "video/avi"
+		case "mov":
+			contentType = "video/quicktime"
 		case "pdf":
 			contentType = "application/pdf"
 		default:

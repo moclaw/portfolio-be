@@ -35,13 +35,29 @@ func NewS3Service(cfg config.S3Config) (*S3Service, error) {
 
 	client := s3.New(sess)
 
-	// Create bucket if it doesn't exist (for localstack)
-	_, err = client.CreateBucket(&s3.CreateBucketInput{
+	// Check if bucket exists first
+	_, err = client.HeadBucket(&s3.HeadBucketInput{
 		Bucket: aws.String(cfg.Bucket),
 	})
-	if err != nil && !strings.Contains(err.Error(), "BucketAlreadyOwnedByYou") {
-		// Ignore "bucket already exists" error
-		fmt.Printf("Warning: Could not create bucket: %v\n", err)
+
+	if err != nil {
+		// Bucket doesn't exist, try to create it
+		fmt.Printf("Bucket '%s' doesn't exist, attempting to create it...\n", cfg.Bucket)
+		_, createErr := client.CreateBucket(&s3.CreateBucketInput{
+			Bucket: aws.String(cfg.Bucket),
+		})
+		if createErr != nil {
+			if strings.Contains(createErr.Error(), "BucketAlreadyOwnedByYou") ||
+				strings.Contains(createErr.Error(), "BucketAlreadyExists") {
+				fmt.Printf("Bucket '%s' already exists\n", cfg.Bucket)
+			} else {
+				return nil, fmt.Errorf("failed to create S3 bucket '%s': %w", cfg.Bucket, createErr)
+			}
+		} else {
+			fmt.Printf("Successfully created bucket '%s'\n", cfg.Bucket)
+		}
+	} else {
+		fmt.Printf("Bucket '%s' already exists\n", cfg.Bucket)
 	}
 
 	return &S3Service{
