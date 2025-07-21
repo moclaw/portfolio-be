@@ -6,10 +6,15 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
 func InitSQLite(databaseURL string) (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open(databaseURL), &gorm.Config{
+	// Use the pure Go SQLite driver by specifying the driver name
+	db, err := gorm.Open(sqlite.Dialector{
+		DriverName: "sqlite",
+		DSN:        databaseURL,
+	}, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
@@ -24,6 +29,7 @@ func Migrate(db *gorm.DB) error {
 		&models.User{},
 		&models.Content{},
 		&models.Upload{},
+		&models.Resource{},
 		&models.Experience{},
 		&models.Service{},
 		&models.Technology{},

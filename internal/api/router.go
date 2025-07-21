@@ -37,6 +37,7 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	// Initialize repositories
 	contentRepo := repository.NewContentRepository(db)
 	uploadRepo := repository.NewUploadRepository(db)
+	resourceRepo := repository.NewResourceRepository(db)
 	experienceRepo := repository.NewExperienceRepository(db)
 	serviceRepo := repository.NewServiceRepository(db)
 	technologyRepo := repository.NewTechnologyRepository(db)
@@ -48,6 +49,7 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	// Initialize services
 	contentService := services.NewContentService(contentRepo)
 	uploadService := services.NewUploadService(uploadRepo, s3Service)
+	resourceService := services.NewResourceService(resourceRepo, uploadRepo, s3Service)
 	experienceService := services.NewExperienceService(experienceRepo)
 	serviceService := services.NewServiceService(serviceRepo)
 	technologyService := services.NewTechnologyService(technologyRepo)
@@ -57,9 +59,15 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	authService := services.NewAuthService(userRepo, jwtService)
 	contactService := services.NewContactService(contactRepo)
 
+	// Initialize Cron Service
+	cronService := services.NewCronService(resourceService, uploadService)
+	// Start cron service in background
+	go cronService.Start()
+
 	// Initialize handlers
 	contentHandler := handlers.NewContentHandler(contentService)
 	uploadHandler := handlers.NewUploadHandler(uploadService)
+	resourceHandler := handlers.NewResourceHandler(resourceService)
 	experienceHandler := handlers.NewExperienceHandler(experienceService)
 	serviceHandler := handlers.NewServiceHandler(serviceService)
 	technologyHandler := handlers.NewTechnologyHandler(technologyService)
@@ -145,6 +153,15 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		admin.POST("/uploads", uploadHandler.UploadFile)
 		admin.DELETE("/uploads/:id", uploadHandler.DeleteUpload)
 
+		// Resource management
+		admin.POST("/resources", resourceHandler.CreateResource)
+		admin.GET("/resources", resourceHandler.GetAllResources)
+		admin.GET("/resources/:id", resourceHandler.GetResource)
+		admin.PUT("/resources/:id", resourceHandler.UpdateResource)
+		admin.DELETE("/resources/:id", resourceHandler.DeleteResource)
+		admin.GET("/resources/stats", resourceHandler.GetResourceStats)
+		admin.POST("/resources/refresh-urls", resourceHandler.RefreshExpiredURLs)
+
 		// Order management
 		admin.PUT("/projects/order", adminOrderHandler.UpdateProjectsOrder)
 		admin.PUT("/experiences/order", adminOrderHandler.UpdateExperiencesOrder)
@@ -189,6 +206,12 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		// Upload routes
 		api.GET("/uploads", uploadHandler.GetAllUploads)
 		api.GET("/uploads/:id", uploadHandler.GetUpload)
+
+		// Resource routes (public read-only)
+		api.GET("/resources", resourceHandler.GetAllResources)
+		api.GET("/resources/:id", resourceHandler.GetResource)
+		api.POST("/resources/:id/download", resourceHandler.DownloadResource)
+		api.GET("/resources/stats", resourceHandler.GetResourceStats)
 	}
 
 	// Legacy API v1 routes (kept for backward compatibility, read-only)
@@ -206,6 +229,14 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		{
 			uploads.GET("", uploadHandler.GetAllUploads)
 			uploads.GET("/:id", uploadHandler.GetUpload)
+		}
+
+		// Resource routes
+		resources := v1.Group("/resources")
+		{
+			resources.GET("", resourceHandler.GetAllResources)
+			resources.GET("/:id", resourceHandler.GetResource)
+			resources.POST("/:id/download", resourceHandler.DownloadResource)
 		}
 
 		// Experience routes

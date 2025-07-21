@@ -6,6 +6,7 @@ import (
 	"portfolio-be/internal/models"
 	"portfolio-be/internal/repository"
 	"strings"
+	"time"
 )
 
 type UploadService struct {
@@ -64,6 +65,9 @@ func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHe
 		return nil, fmt.Errorf("failed to upload file: %w", err)
 	}
 
+	// Set expiry time for the URL (7 days from now)
+	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+
 	// Save to database
 	upload := &models.Upload{
 		FileName:     s3Key[strings.LastIndex(s3Key, "/")+1:], // Extract filename from s3 key
@@ -73,6 +77,8 @@ func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHe
 		S3Key:        s3Key,
 		S3Bucket:     s.s3Service.bucket,
 		URL:          url,
+		ExpiresAt:    &expiresAt,
+		IsActive:     true,
 	}
 
 	if err := s.repo.Create(upload); err != nil {

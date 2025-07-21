@@ -99,3 +99,18 @@ func (s *S3Service) DeleteFile(key string) error {
 func (s *S3Service) GetFileURL(key string) string {
 	return fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.bucket, key)
 }
+
+// GeneratePresignedURL generates a presigned URL for file access with expiration
+func (s *S3Service) GeneratePresignedURL(key string, duration time.Duration) (string, error) {
+	req, _ := s.client.GetObjectRequest(&s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+
+	url, err := req.Presign(duration)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate presigned URL: %w", err)
+	}
+
+	return url, nil
+}
