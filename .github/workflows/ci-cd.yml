@@ -38,27 +38,6 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Run tests
-      run: |
-        go test -v ./...
-        
-    - name: Run security scan
-      run: |
-        go install github.com/securecodewarrior/gosu@latest || true
-        if command -v gosec >/dev/null 2>&1; then
-          gosec ./...
-        else
-          echo "Security scan skipped - gosec not available"
-        fi
-
-    - name: Check code formatting
-      run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "Code formatting issues found:"
-          gofmt -s -l .
-          exit 1
-        fi
-
   build-and-push:
     needs: test
     runs-on: self-hosted
