@@ -1,0 +1,161 @@
+name: Portfolio Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  DOCKER_IMAGE: portfolio-backend
+  DOCKER_TAG: ${{ github.sha }}
+  REGISTRY: ghcr.io
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository_owner }}/portfolio-backend
+
+jobs:
+  test:
+    runs-on: self-hosted
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run tests
+      run: |
+        go test -v ./...
+        
+    - name: Run security scan
+      run: |
+        go install github.com/securecodewarrior/gosu@latest || true
+        if command -v gosec >/dev/null 2>&1; then
+          gosec ./...
+        else
+          echo "Security scan skipped - gosec not available"
+        fi
+
+    - name: Check code formatting
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "Code formatting issues found:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+  build-and-push:
+    needs: test
+    runs-on: self-hosted
+    
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+  deploy:
+    needs: build-and-push
+    runs-on: self-hosted
+    
+    steps:
+    - name: Deploy to Production
+      run: |
+        echo "🚀 Deploying to production environment..."
+        
+        # Stop existing container if running
+        docker stop portfolio-backend-prod || true
+        docker rm portfolio-backend-prod || true
+        
+        # Pull latest image
+        docker pull ${{ env.REGISTRY_IMAGE }}:main-${{ github.sha }}
+        
+        # Run new container
+        docker run -d \
+          --name portfolio-backend-prod \
+          --restart unless-stopped \
+          -p 5303:5303 \
+          -e USE_SECRETS_MANAGER=true \
+          -e SECRET_NAME=portfolio-secrets \
+          -e AWS_REGION=us-east-1 \
+          -e PORT=5303 \
+          -e HOST=0.0.0.0 \
+          -v /app/data/production:/app/data \
+          ${{ env.REGISTRY_IMAGE }}:main-${{ github.sha }}
+        
+        # Wait for container to be healthy
+        timeout 60 sh -c 'until docker exec portfolio-backend-prod curl -f http://localhost:5303/health; do sleep 2; done'
+        
+        echo "✅ Production deployment completed successfully!"
+
+  cleanup:
+    if: always()
+    needs: [build-and-push, deploy]
+    runs-on: self-hosted
+    
+    steps:
+    - name: Cleanup old Docker images
+      run: |
+        echo "🧹 Cleaning up old Docker images..."
+        
+        # Keep only the latest 5 images
+        docker images ${{ env.REGISTRY_IMAGE }} --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}" | \
+        tail -n +2 | \
+        sort -k2 -r | \
+        tail -n +6 | \
+        awk '{print $3}' | \
+        xargs -r docker rmi || true
+        
+        # Clean up dangling images
+        docker image prune -f
+        
+        echo "✅ Cleanup completed!"

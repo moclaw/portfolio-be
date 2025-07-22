@@ -116,27 +116,78 @@ func (h *UploadHandler) GetAllUploads(c *gin.Context) {
 
 	offset := (page - 1) * limit
 
-	uploads, err := h.service.GetAllUploads(limit, offset)
+	uploads, totalCount, err := h.service.GetUploadsWithCount(limit, offset)
 	if err != nil {
 		utils.InternalErrorResponse(c, err)
 		return
 	}
 
-	// For simplicity, we'll calculate total pages based on returned results
-	// In a real application, you might want to add a count method to the service
-	totalPages := int(math.Ceil(float64(len(uploads)) / float64(limit)))
-	if len(uploads) == limit {
-		totalPages = page + 1 // Assume there might be more pages
-	}
+	// Calculate pagination properly
+	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
 
 	pagination := utils.Pagination{
 		Page:       page,
 		Limit:      limit,
-		TotalItems: int64(len(uploads)), // This is not accurate, but serves as placeholder
+		TotalItems: totalCount,
 		TotalPages: totalPages,
 	}
 
 	utils.PaginatedSuccessResponse(c, "Uploads retrieved successfully", uploads, pagination)
+}
+
+// GetAllUploadsWithSummary godoc
+// @Summary Get all uploads with summary
+// @Description Get a list of all upload records with summary statistics
+// @Tags upload
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Items per page" default(12)
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
+// @Router /api/v1/uploads/summary [get]
+func (h *UploadHandler) GetAllUploadsWithSummary(c *gin.Context) {
+	// Parse query parameters
+	pageStr := c.DefaultQuery("page", "1")
+	limitStr := c.DefaultQuery("limit", "12")
+
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 12
+	}
+
+	offset := (page - 1) * limit
+
+	result, err := h.service.GetAllUploadsWithSummary(limit, offset)
+	if err != nil {
+		utils.InternalErrorResponse(c, err)
+		return
+	}
+
+	// Calculate pagination for the response
+	totalItems := result.Summary.TotalFiles
+	totalPages := int(math.Ceil(float64(totalItems) / float64(limit)))
+
+	pagination := utils.Pagination{
+		Page:       page,
+		Limit:      limit,
+		TotalItems: totalItems,
+		TotalPages: totalPages,
+	}
+
+	// Create response with pagination
+	response := map[string]interface{}{
+		"data":       result.Uploads,
+		"summary":    result.Summary,
+		"pagination": pagination,
+	}
+
+	utils.SuccessResponse(c, "Uploads retrieved successfully", response)
 }
 
 // DeleteUpload godoc

@@ -106,8 +106,10 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	{
 		// User management
 		admin.GET("/users", userHandler.GetUsers)
+		admin.POST("/users", userHandler.CreateUser)
 		admin.GET("/users/:id", userHandler.GetUser)
 		admin.PUT("/users/:id", userHandler.UpdateUser)
+		admin.PATCH("/users/:id/password", userHandler.UpdateUserPassword)
 		admin.DELETE("/users/:id", userHandler.DeleteUser)
 		admin.PATCH("/users/:id/toggle-status", userHandler.ToggleUserStatus)
 
@@ -206,6 +208,7 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		// Upload routes
 		api.GET("/uploads", uploadHandler.GetAllUploads)
 		api.GET("/uploads/:id", uploadHandler.GetUpload)
+		api.GET("/uploads/summary", uploadHandler.GetAllUploadsWithSummary)
 
 		// Resource routes (public read-only)
 		api.GET("/resources", resourceHandler.GetAllResources)
@@ -229,6 +232,7 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		{
 			uploads.GET("", uploadHandler.GetAllUploads)
 			uploads.GET("/:id", uploadHandler.GetUpload)
+			uploads.GET("/summary", uploadHandler.GetAllUploadsWithSummary)
 		}
 
 		// Resource routes

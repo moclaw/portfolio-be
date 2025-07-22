@@ -49,3 +49,20 @@ func (u *Upload) ToResponse() UploadResponse {
 		CreatedAt:    u.CreatedAt,
 	}
 }
+
+// UploadSummary represents upload statistics
+type UploadSummary struct {
+	TotalFiles         int64  `json:"total_files" example:"150"`
+	TotalSize          int64  `json:"total_size" example:"52428800"`
+	TotalSizeFormatted string `json:"total_size_formatted" example:"50MB"`
+	Images             int64  `json:"images" example:"80"`
+	Documents          int64  `json:"documents" example:"30"`
+	Videos             int64  `json:"videos" example:"20"`
+	Others             int64  `json:"others" example:"20"`
+}
+
+// UploadListResponse represents the response for upload list with summary
+type UploadListResponse struct {
+	Uploads []UploadResponse `json:"uploads"`
+	Summary UploadSummary    `json:"summary"`
+}

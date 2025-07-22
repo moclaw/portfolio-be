@@ -5,6 +5,7 @@ import (
 	"mime/multipart"
 	"portfolio-be/internal/models"
 	"portfolio-be/internal/repository"
+	"slices"
 	"strings"
 	"time"
 )
@@ -63,13 +64,7 @@ func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHe
 	}
 
 	// Check if content type is allowed
-	allowed := false
-	for _, allowedType := range allowedTypes {
-		if contentType == allowedType {
-			allowed = true
-			break
-		}
-	}
+	allowed := slices.Contains(allowedTypes, contentType)
 	if !allowed {
 		return nil, fmt.Errorf("file type %s is not allowed", contentType)
 	}
@@ -81,7 +76,7 @@ func (s *UploadService) UploadFile(file multipart.File, header *multipart.FileHe
 	}
 
 	// Set expiry time for the URL (7 days from now)
-	expiresAt := time.Now().Add(7 * 24 * time.Hour)
+	expiresAt := time.Now().Add(365 * 24 * time.Hour)
 
 	// Save to database
 	upload := &models.Upload{
@@ -128,6 +123,48 @@ func (s *UploadService) GetAllUploads(limit, offset int) ([]models.UploadRespons
 	}
 
 	return responses, nil
+}
+
+func (s *UploadService) GetUploadsWithCount(limit, offset int) ([]models.UploadResponse, int64, error) {
+	uploads, err := s.repo.GetAll(limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get uploads: %w", err)
+	}
+
+	count, err := s.repo.Count()
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get upload count: %w", err)
+	}
+
+	responses := make([]models.UploadResponse, len(uploads))
+	for i, upload := range uploads {
+		responses[i] = upload.ToResponse()
+	}
+
+	return responses, count, nil
+}
+
+func (s *UploadService) GetAllUploadsWithSummary(limit, offset int) (*models.UploadListResponse, error) {
+	uploads, err := s.repo.GetAll(limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get uploads: %w", err)
+	}
+
+	responses := make([]models.UploadResponse, len(uploads))
+	for i, upload := range uploads {
+		responses[i] = upload.ToResponse()
+	}
+
+	// Get summary
+	summary, err := s.repo.GetUploadSummary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload summary: %w", err)
+	}
+
+	return &models.UploadListResponse{
+		Uploads: responses,
+		Summary: *summary,
+	}, nil
 }
 
 func (s *UploadService) DeleteUpload(id uint) error {
