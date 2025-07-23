@@ -102,6 +102,11 @@ func Load() *Config {
 		},
 	}
 
+	// Validate critical S3 configuration
+	if err := validateS3Config(config.S3Config); err != nil {
+		log.Fatalf("Invalid S3 configuration: %v", err)
+	}
+
 	return config
 }
 
@@ -151,4 +156,26 @@ func getSecretOrEnv(secretData *SecretData, secretKey, envKey, defaultValue stri
 
 func GetEnv(key, defaultValue string) string {
 	return getEnv(key, defaultValue)
+}
+
+// validateS3Config validates that S3 configuration doesn't contain placeholder values
+func validateS3Config(s3Config S3Config) error {
+	placeholderValues := []string{"change-in-production", "your-super-secret-jwt-key-change-in-production"}
+
+	for _, placeholder := range placeholderValues {
+		if s3Config.Endpoint == placeholder {
+			return fmt.Errorf("S3 Endpoint contains placeholder value: %s. Please set S3_ENDPOINT environment variable or configure AWS Secrets Manager", placeholder)
+		}
+		if s3Config.Bucket == placeholder {
+			return fmt.Errorf("S3 Bucket contains placeholder value: %s. Please set S3_BUCKET environment variable or configure AWS Secrets Manager", placeholder)
+		}
+		if s3Config.AccessKeyID == placeholder {
+			return fmt.Errorf("S3 AccessKeyID contains placeholder value: %s. Please set S3_ACCESS_KEY_ID environment variable or configure AWS Secrets Manager", placeholder)
+		}
+		if s3Config.SecretAccessKey == placeholder {
+			return fmt.Errorf("S3 SecretAccessKey contains placeholder value: %s. Please set S3_SECRET_ACCESS_KEY environment variable or configure AWS Secrets Manager", placeholder)
+		}
+	}
+
+	return nil
 }
