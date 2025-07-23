@@ -73,11 +73,72 @@ jobs:
       - name: "Checkout Code"
         uses: actions/checkout@v4
 
+      - name: "Install AWS CLI and jq"
+        run: |
+          # Install AWS CLI v2 if not present
+          if ! command -v aws &> /dev/null; then
+            echo "Installing AWS CLI..."
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip awscliv2.zip
+            sudo ./aws/install
+          fi
+          
+          # Install jq if not present
+          if ! command -v jq &> /dev/null; then
+            echo "Installing jq..."
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+          
+          # Set dummy AWS credentials for LocalStack
+          export AWS_ACCESS_KEY_ID=test
+          export AWS_SECRET_ACCESS_KEY=test
+          export AWS_DEFAULT_REGION=us-east-1
+          
+          echo "✅ AWS CLI and jq installed successfully"
+
       - name: "Setup Environment"
         run: |
           # Ensure logs directory exists
           mkdir -p ./logs
           mkdir -p ./data
+
+      - name: "Verify Secrets Manager Configuration"
+        run: |
+          echo "🔍 Retrieving secrets from AWS Secrets Manager (LocalStack)..."
+          
+          # Set AWS credentials for LocalStack
+          export AWS_ACCESS_KEY_ID=test
+          export AWS_SECRET_ACCESS_KEY=test
+          export AWS_DEFAULT_REGION=us-east-1
+          
+          # Test connection to LocalStack first
+          echo "Testing LocalStack connection..."
+          curl -f http://localhost:4566/_localstack/health || echo "Warning: LocalStack might not be running"
+          
+          # Get secret values from LocalStack and display important values
+          echo "Retrieving portfolio-secrets..."
+          SECRET_JSON=$(aws --endpoint-url=http://localhost:4566 \
+            secretsmanager get-secret-value \
+            --secret-id portfolio-secrets \
+            --region us-east-1 \
+            --query 'SecretString' \
+            --output text 2>/dev/null)
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Successfully retrieved secrets from LocalStack"
+            echo "Secret values preview:"
+            echo "$SECRET_JSON" | jq '{
+              database_url: .database_url,
+              s3_endpoint: .s3_endpoint,
+              s3_bucket: .s3_bucket,
+              jwt_secret_configured: (.jwt_secret_key != null and .jwt_secret_key != "")
+            }'
+          else
+            echo "❌ Failed to retrieve secrets from LocalStack"
+            echo "This might be expected if LocalStack is not running or secrets are not configured"
+          fi
+          
+          echo "✅ Secrets verification completed"
 
       - name: "Stop and Remove Existing Container"
         run: |
@@ -94,7 +155,7 @@ jobs:
         run: |
           echo "Starting container deployment..."
           
-          # Run container with proper configuration
+          # Run container with proper configuration for LocalStack
           docker run -d \
             --name ${{ env.CONTAINER_NAME }} \
             --restart unless-stopped \
@@ -102,14 +163,28 @@ jobs:
             -e USE_SECRETS_MANAGER=true \
             -e SECRET_NAME=portfolio-secrets \
             -e AWS_REGION=us-east-1 \
+            -e AWS_ENDPOINT_URL=http://localhost:4566 \
+            -e AWS_ACCESS_KEY_ID=test \
+            -e AWS_SECRET_ACCESS_KEY=test \
+            -e ENVIRONMENT=development \
             -e PORT=5303 \
             -e HOST=0.0.0.0 \
+            --network host \
             -v "$(pwd)/logs:/app/logs" \
             -v "$(pwd)/data:/app/data" \
             ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
           
+          # Wait a moment for container to start
+          sleep 3
+          
           # Display container info
-          echo "Container started with ID: $(docker ps -q -f name=${{ env.CONTAINER_NAME }})"
+          CONTAINER_ID=$(docker ps -q -f name=${{ env.CONTAINER_NAME }})
+          if [ -n "$CONTAINER_ID" ]; then
+            echo "✅ Container started successfully with ID: $CONTAINER_ID"
+          else
+            echo "❌ Container failed to start"
+            exit 1
+          fi
 
       - name: "Show Container Status"
         run: |
@@ -119,11 +194,17 @@ jobs:
           docker ps --filter "name=${{ env.CONTAINER_NAME }}"
           echo ""
           echo "Container Logs:"
-          docker logs --tail 20 ${{ env.CONTAINER_NAME }}
+          docker logs --tail 30 ${{ env.CONTAINER_NAME }}
           echo ""
           echo "Service URLs:"
           echo "  • API: http://localhost:${{ env.API_PORT }}"
           echo "  • Health Check: http://localhost:${{ env.API_PORT }}/health"
+          echo ""
+          echo "Configuration Summary:"
+          echo "  • Using AWS Secrets Manager: true"
+          echo "  • LocalStack Endpoint: http://localhost:4566"
+          echo "  • Secret Name: portfolio-secrets"
+          echo "  • Environment: development"
 
   # ==========================================
   # CLEANUP JOB

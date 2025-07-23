@@ -218,28 +218,11 @@ func GetEnv(key, defaultValue string) string {
 
 // validateS3Config validates that S3 configuration doesn't contain placeholder values
 func validateS3Config(s3Config S3Config) error {
-	placeholderValues := []string{"change-in-production", "your-super-secret-jwt-key-change-in-production"}
-
-	for _, placeholder := range placeholderValues {
-		if s3Config.Endpoint == placeholder {
-			return fmt.Errorf("S3 Endpoint contains placeholder value: %s. Please set S3_ENDPOINT environment variable or configure AWS Secrets Manager", placeholder)
-		}
-		if s3Config.Bucket == placeholder {
-			return fmt.Errorf("S3 Bucket contains placeholder value: %s. Please set S3_BUCKET environment variable or configure AWS Secrets Manager", placeholder)
-		}
-		if s3Config.AccessKeyID == placeholder {
-			return fmt.Errorf("S3 AccessKeyID contains placeholder value: %s. Please set S3_ACCESS_KEY_ID environment variable or configure AWS Secrets Manager", placeholder)
-		}
-		if s3Config.SecretAccessKey == placeholder {
-			return fmt.Errorf("S3 SecretAccessKey contains placeholder value: %s. Please set S3_SECRET_ACCESS_KEY environment variable or configure AWS Secrets Manager", placeholder)
-		}
-	}
-
 	// Check if we're in development mode (LocalStack) - allow more flexible validation
 	isDevelopment := getEnv("AWS_ENDPOINT_URL", "") != "" || getEnv("ENVIRONMENT", "production") == "development"
 
 	if !isDevelopment {
-		// Additional validation for empty values only in production
+		// Validation for production environment only
 		if s3Config.Endpoint == "" {
 			return fmt.Errorf("S3 Endpoint is required. Please set S3_ENDPOINT environment variable or configure AWS Secrets Manager")
 		}
