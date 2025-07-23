@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
 
@@ -20,32 +21,52 @@ type SecretsManagerService struct {
 
 // NewSecretsManagerService creates a new Secrets Manager service
 func NewSecretsManagerService(region string) (*SecretsManagerService, error) {
-	// Load default AWS configuration
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
-	if err != nil {
-		return nil, fmt.Errorf("unable to load SDK config: %w", err)
-	}
-
 	// Check if we're using LocalStack
-	awsEndpoint := getEnv("AWS_ENDPOINT_URL", "http://localhost:4566")
+	awsEndpoint := getEnv("AWS_ENDPOINT_URL", "")
+	isLocalStack := awsEndpoint != ""
 
-	var client *secretsmanager.Client
+	var cfg aws.Config
+	var err error
 
-	if awsEndpoint != "" {
-		// Configure for LocalStack with custom endpoint
-		client = secretsmanager.NewFromConfig(cfg, func(o *secretsmanager.Options) {
+	if isLocalStack {
+		// Configure for LocalStack with dummy credentials
+		cfg, err = config.LoadDefaultConfig(context.TODO(),
+			config.WithRegion(region),
+			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+				getEnv("AWS_ACCESS_KEY_ID", "test"),
+				getEnv("AWS_SECRET_ACCESS_KEY", "test"),
+				"",
+			)),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("unable to load LocalStack SDK config: %w", err)
+		}
+
+		// Create client with custom endpoint for LocalStack
+		client := secretsmanager.NewFromConfig(cfg, func(o *secretsmanager.Options) {
 			o.BaseEndpoint = aws.String(awsEndpoint)
 		})
+
 		log.Printf("Configured Secrets Manager client for LocalStack endpoint: %s", awsEndpoint)
+
+		return &SecretsManagerService{
+			client: client,
+			region: region,
+		}, nil
 	} else {
 		// Standard AWS configuration
-		client = secretsmanager.NewFromConfig(cfg)
-	}
+		cfg, err = config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+		if err != nil {
+			return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
+		}
 
-	return &SecretsManagerService{
-		client: client,
-		region: region,
-	}, nil
+		client := secretsmanager.NewFromConfig(cfg)
+
+		return &SecretsManagerService{
+			client: client,
+			region: region,
+		}, nil
+	}
 }
 
 // GetSecret retrieves a secret from AWS Secrets Manager
@@ -75,6 +96,9 @@ func Load() *Config {
 	secretName := getEnv("SECRET_NAME", "portfolio-secrets")
 	region := getEnv("AWS_REGION", "us-east-1")
 
+	// Check if we're in development mode (LocalStack)
+	isDevelopment := getEnv("AWS_ENDPOINT_URL", "") != "" || getEnv("ENVIRONMENT", "production") == "development"
+
 	var secretData *SecretData
 
 	if useSecrets {
@@ -94,21 +118,39 @@ func Load() *Config {
 		}
 	}
 
+	// Set development defaults for LocalStack/development environment
+	var defaultS3Endpoint, defaultS3Bucket, defaultS3AccessKey, defaultS3SecretKey, defaultJWTSecret string
+
+	if isDevelopment {
+		defaultS3Endpoint = "http://localhost:4566"
+		defaultS3Bucket = "portfolio-bucket"
+		defaultS3AccessKey = "test"
+		defaultS3SecretKey = "test"
+		defaultJWTSecret = "development-jwt-secret-key-not-for-production"
+	} else {
+		// Production requires these to be explicitly set
+		defaultS3Endpoint = ""
+		defaultS3Bucket = ""
+		defaultS3AccessKey = ""
+		defaultS3SecretKey = ""
+		defaultJWTSecret = ""
+	}
+
 	// Load config with fallback to environment variables
 	config := &Config{
 		Port:        getEnv("PORT", "5303"),
 		Host:        getEnv("HOST", "localhost"),
 		DatabaseURL: getSecretOrEnv(secretData, "database_url", "DATABASE_URL", "portfolio.db"),
 		S3Config: S3Config{
-			Endpoint:        getSecretOrEnv(secretData, "s3_endpoint", "S3_ENDPOINT", ""),
+			Endpoint:        getSecretOrEnv(secretData, "s3_endpoint", "S3_ENDPOINT", defaultS3Endpoint),
 			Region:          getSecretOrEnv(secretData, "s3_region", "S3_REGION", "us-east-1"),
-			Bucket:          getSecretOrEnv(secretData, "s3_bucket", "S3_BUCKET", ""),
-			AccessKeyID:     getSecretOrEnv(secretData, "s3_access_key_id", "S3_ACCESS_KEY_ID", ""),
-			SecretAccessKey: getSecretOrEnv(secretData, "s3_secret_access_key", "S3_SECRET_ACCESS_KEY", ""),
+			Bucket:          getSecretOrEnv(secretData, "s3_bucket", "S3_BUCKET", defaultS3Bucket),
+			AccessKeyID:     getSecretOrEnv(secretData, "s3_access_key_id", "S3_ACCESS_KEY_ID", defaultS3AccessKey),
+			SecretAccessKey: getSecretOrEnv(secretData, "s3_secret_access_key", "S3_SECRET_ACCESS_KEY", defaultS3SecretKey),
 			ForcePathStyle:  true,
 		},
 		JWTConfig: JWTConfig{
-			SecretKey: getSecretOrEnv(secretData, "jwt_secret_key", "JWT_SECRET_KEY", ""),
+			SecretKey: getSecretOrEnv(secretData, "jwt_secret_key", "JWT_SECRET_KEY", defaultJWTSecret),
 			Issuer:    getEnv("JWT_ISSUER", "portfolio-api"),
 		},
 		SecretsManagerConfig: SecretsManagerConfig{
