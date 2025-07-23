@@ -1,0 +1,62 @@
+# Docker ignore to reduce build context size
+
+# Git
+.git
+.gitignore
+.github
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Development files
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# Build artifacts
+tmp/
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+testdata/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.*
+
+# Docker files (except main Dockerfile)
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile.*
+
+# Local development
+localstack-init/
+logs/
+data/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Dependencies
+vendor/
+node_modules/

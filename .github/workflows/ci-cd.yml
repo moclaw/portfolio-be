@@ -1,0 +1,160 @@
+name: "CI/CD Pipeline - Portfolio Backend"
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.24"
+  APP_NAME: "portfolio-backend"
+  DOCKER_IMAGE: "portfolio-backend"
+  DOCKER_TAG: "latest"
+  CONTAINER_NAME: "portfolio-be"
+  API_PORT: 5303
+
+jobs:
+  # ==========================================
+  # BUILD & TEST JOB
+  # ==========================================
+  build-and-test:
+    name: "Build & Test"
+    runs-on: self-hosted
+
+    steps:
+      - name: "Free up disk space"
+        run: |
+          echo "🧹 Cleaning up disk space before build..."
+          
+          # Docker cleanup
+          docker system prune -af --volumes
+          docker builder prune -af
+          
+          # Remove unused images
+          docker image prune -af
+          
+          # Show available space
+          df -h
+          echo "✅ Cleanup completed!"
+
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Setup Go"
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: "Download Dependencies"
+        run: go mod download
+
+      - name: "Build Docker Image"
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} .
+
+      - name: "Cleanup after build"
+        run: |
+          # Remove build cache and temporary files
+          docker builder prune -f
+          rm -f app coverage.out || true
+
+  # ==========================================
+  # DEPLOY JOB
+  # ==========================================
+  deploy:
+    name: "Deploy to Development"
+    runs-on: self-hosted
+    needs: build-and-test
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+
+      - name: "Setup Environment"
+        run: |
+          # Ensure logs directory exists
+          mkdir -p ./logs
+          mkdir -p ./data
+
+      - name: "Stop and Remove Existing Container"
+        run: |
+          # Check if container exists and stop it
+          if docker ps -a --format '{{.Names}}' | grep -q "${{ env.CONTAINER_NAME }}"; then
+            echo "Stopping existing container..."
+            docker stop ${{ env.CONTAINER_NAME }}
+            docker rm ${{ env.CONTAINER_NAME }}
+          else
+            echo "No existing container found."
+          fi
+
+      - name: "Deploy with Docker"
+        run: |
+          echo "Starting container deployment..."
+          
+          # Run container with proper configuration
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            -p ${{ env.API_PORT }}:5303 \
+            -e USE_SECRETS_MANAGER=true \
+            -e SECRET_NAME=portfolio-secrets \
+            -e AWS_REGION=us-east-1 \
+            -e PORT=5303 \
+            -e HOST=0.0.0.0 \
+            -v "$(pwd)/logs:/app/logs" \
+            -v "$(pwd)/data:/app/data" \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }}
+          
+          # Display container info
+          echo "Container started with ID: $(docker ps -q -f name=${{ env.CONTAINER_NAME }})"
+
+      - name: "Show Container Status"
+        run: |
+          echo "🚀 Development deployment completed!"
+          echo ""
+          echo "Docker Container Status:"
+          docker ps --filter "name=${{ env.CONTAINER_NAME }}"
+          echo ""
+          echo "Container Logs:"
+          docker logs --tail 20 ${{ env.CONTAINER_NAME }}
+          echo ""
+          echo "Service URLs:"
+          echo "  • API: http://localhost:${{ env.API_PORT }}"
+          echo "  • Health Check: http://localhost:${{ env.API_PORT }}/health"
+
+  # ==========================================
+  # CLEANUP JOB
+  # ==========================================
+  cleanup:
+    name: "Cleanup"
+    runs-on: self-hosted
+    needs: deploy
+    if: always()
+
+    steps:
+      - name: "Archive Logs"
+        run: |
+          # Create logs archive directory
+          mkdir -p ./logs/archive/$(date +%Y%m%d)
+
+          # Copy current logs
+          cp -r ./logs/* ./logs/archive/$(date +%Y%m%d)/ 2>/dev/null || true
+
+          # Compress old logs (older than 7 days)
+          find ./logs/archive -name "*.log" -mtime +7 -exec gzip {} \; 2>/dev/null || true
+
+      - name: "Cleanup Docker Images"
+        run: |
+          # Remove dangling images
+          docker image prune -f
+          
+          # Clean up old images (keep latest 3)
+          docker images ${{ env.DOCKER_IMAGE }} --format "table {{.ID}}\t{{.CreatedAt}}" | \
+          tail -n +2 | \
+          sort -k2 -r | \
+          tail -n +4 | \
+          awk '{print $1}' | \
+          xargs -r docker rmi || true
