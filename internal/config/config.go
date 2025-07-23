@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 )
@@ -19,12 +20,27 @@ type SecretsManagerService struct {
 
 // NewSecretsManagerService creates a new Secrets Manager service
 func NewSecretsManagerService(region string) (*SecretsManagerService, error) {
+	// Load default AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config: %w", err)
 	}
 
-	client := secretsmanager.NewFromConfig(cfg)
+	// Check if we're using LocalStack
+	awsEndpoint := getEnv("AWS_ENDPOINT_URL", "http://localhost:4566")
+
+	var client *secretsmanager.Client
+
+	if awsEndpoint != "" {
+		// Configure for LocalStack with custom endpoint
+		client = secretsmanager.NewFromConfig(cfg, func(o *secretsmanager.Options) {
+			o.BaseEndpoint = aws.String(awsEndpoint)
+		})
+		log.Printf("Configured Secrets Manager client for LocalStack endpoint: %s", awsEndpoint)
+	} else {
+		// Standard AWS configuration
+		client = secretsmanager.NewFromConfig(cfg)
+	}
 
 	return &SecretsManagerService{
 		client: client,
@@ -84,15 +100,15 @@ func Load() *Config {
 		Host:        getEnv("HOST", "localhost"),
 		DatabaseURL: getSecretOrEnv(secretData, "database_url", "DATABASE_URL", "portfolio.db"),
 		S3Config: S3Config{
-			Endpoint:        getSecretOrEnv(secretData, "s3_endpoint", "S3_ENDPOINT", "change-in-production"),
+			Endpoint:        getSecretOrEnv(secretData, "s3_endpoint", "S3_ENDPOINT", ""),
 			Region:          getSecretOrEnv(secretData, "s3_region", "S3_REGION", "us-east-1"),
-			Bucket:          getSecretOrEnv(secretData, "s3_bucket", "S3_BUCKET", "change-in-production"),
-			AccessKeyID:     getSecretOrEnv(secretData, "s3_access_key_id", "S3_ACCESS_KEY_ID", "change-in-production"),
-			SecretAccessKey: getSecretOrEnv(secretData, "s3_secret_access_key", "S3_SECRET_ACCESS_KEY", "change-in-production"),
+			Bucket:          getSecretOrEnv(secretData, "s3_bucket", "S3_BUCKET", ""),
+			AccessKeyID:     getSecretOrEnv(secretData, "s3_access_key_id", "S3_ACCESS_KEY_ID", ""),
+			SecretAccessKey: getSecretOrEnv(secretData, "s3_secret_access_key", "S3_SECRET_ACCESS_KEY", ""),
 			ForcePathStyle:  true,
 		},
 		JWTConfig: JWTConfig{
-			SecretKey: getSecretOrEnv(secretData, "jwt_secret_key", "JWT_SECRET_KEY", "your-super-secret-jwt-key-change-in-production"),
+			SecretKey: getSecretOrEnv(secretData, "jwt_secret_key", "JWT_SECRET_KEY", ""),
 			Issuer:    getEnv("JWT_ISSUER", "portfolio-api"),
 		},
 		SecretsManagerConfig: SecretsManagerConfig{
@@ -174,6 +190,25 @@ func validateS3Config(s3Config S3Config) error {
 		}
 		if s3Config.SecretAccessKey == placeholder {
 			return fmt.Errorf("S3 SecretAccessKey contains placeholder value: %s. Please set S3_SECRET_ACCESS_KEY environment variable or configure AWS Secrets Manager", placeholder)
+		}
+	}
+
+	// Check if we're in development mode (LocalStack) - allow more flexible validation
+	isDevelopment := getEnv("AWS_ENDPOINT_URL", "") != "" || getEnv("ENVIRONMENT", "production") == "development"
+
+	if !isDevelopment {
+		// Additional validation for empty values only in production
+		if s3Config.Endpoint == "" {
+			return fmt.Errorf("S3 Endpoint is required. Please set S3_ENDPOINT environment variable or configure AWS Secrets Manager")
+		}
+		if s3Config.Bucket == "" {
+			return fmt.Errorf("S3 Bucket is required. Please set S3_BUCKET environment variable or configure AWS Secrets Manager")
+		}
+		if s3Config.AccessKeyID == "" {
+			return fmt.Errorf("S3 AccessKeyID is required. Please set S3_ACCESS_KEY_ID environment variable or configure AWS Secrets Manager")
+		}
+		if s3Config.SecretAccessKey == "" {
+			return fmt.Errorf("S3 SecretAccessKey is required. Please set S3_SECRET_ACCESS_KEY environment variable or configure AWS Secrets Manager")
 		}
 	}
 
