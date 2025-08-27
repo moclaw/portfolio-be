@@ -102,44 +102,6 @@ jobs:
           mkdir -p ./logs
           mkdir -p ./data
 
-      - name: "Verify Secrets Manager Configuration"
-        run: |
-          echo "🔍 Retrieving secrets from AWS Secrets Manager (LocalStack)..."
-          
-          # Set AWS credentials for LocalStack
-          export AWS_ACCESS_KEY_ID=test
-          export AWS_SECRET_ACCESS_KEY=test
-          export AWS_DEFAULT_REGION=us-east-1
-          
-          # Test connection to LocalStack first
-          echo "Testing LocalStack connection..."
-          curl -f http://localhost:4566/_localstack/health || echo "Warning: LocalStack might not be running"
-          
-          # Get secret values from LocalStack and display important values
-          echo "Retrieving portfolio-secrets..."
-          SECRET_JSON=$(aws --endpoint-url=http://localhost:4566 \
-            secretsmanager get-secret-value \
-            --secret-id portfolio-secrets \
-            --region us-east-1 \
-            --query 'SecretString' \
-            --output text 2>/dev/null)
-          
-          if [ $? -eq 0 ]; then
-            echo "✅ Successfully retrieved secrets from LocalStack"
-            echo "Secret values preview:"
-            echo "$SECRET_JSON" | jq '{
-              database_url: .database_url,
-              s3_endpoint: .s3_endpoint,
-              s3_bucket: .s3_bucket,
-              jwt_secret_configured: (.jwt_secret_key != null and .jwt_secret_key != "")
-            }'
-          else
-            echo "❌ Failed to retrieve secrets from LocalStack"
-            echo "This might be expected if LocalStack is not running or secrets are not configured"
-          fi
-          
-          echo "✅ Secrets verification completed"
-
       - name: "Stop and Remove Existing Container"
         run: |
           # Check if container exists and stop it
