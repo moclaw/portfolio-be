@@ -11,8 +11,10 @@ type User struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
 	Username  string    `json:"username" gorm:"unique;not null"`
 	Email     string    `json:"email" gorm:"unique;not null"`
-	Password  string    `json:"-" gorm:"not null"` // Hide password in JSON responses
-	Role      string    `json:"role" gorm:"default:user"`
+	Password  string    `json:"-" gorm:"not null"`        // Hide password in JSON responses
+	Role      string    `json:"role" gorm:"default:user"` // Keep for backward compatibility
+	RoleID    *uint     `json:"role_id" gorm:"index"`
+	UserRole  *Role     `json:"user_role,omitempty" gorm:"foreignKey:RoleID"`
 	IsActive  bool      `json:"is_active" gorm:"default:true"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"portfolio-be/internal/api/middleware"
 	"portfolio-be/internal/models"
 	"portfolio-be/internal/services"
 
@@ -9,11 +10,15 @@ import (
 )
 
 type AuthHandler struct {
-	authService *services.AuthService
+	authService          *services.AuthService
+	permissionMiddleware *middleware.PermissionMiddleware
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService *services.AuthService, permissionMiddleware *middleware.PermissionMiddleware) *AuthHandler {
+	return &AuthHandler{
+		authService:          authService,
+		permissionMiddleware: permissionMiddleware,
+	}
 }
 
 // Register godoc
@@ -80,7 +85,23 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	// Get user permissions
+	permissions, err := h.permissionMiddleware.GetUserPermissions(response.User.ID)
+	if err != nil {
+		// Don't fail login if permissions can't be retrieved, just log it
+		permissions = []string{}
+	}
+
+	// Add permissions to response
+	responseWithPermissions := struct {
+		models.LoginResponse
+		Permissions []string `json:"permissions"`
+	}{
+		LoginResponse: *response,
+		Permissions:   permissions,
+	}
+
+	c.JSON(http.StatusOK, responseWithPermissions)
 }
 
 // RefreshToken godoc
@@ -138,7 +159,22 @@ func (h *AuthHandler) Profile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	// Get user permissions
+	permissions, err := h.permissionMiddleware.GetUserPermissions(user.ID)
+	if err != nil {
+		permissions = []string{}
+	}
+
+	// Create response with permissions
+	response := struct {
+		*models.User
+		Permissions []string `json:"permissions"`
+	}{
+		User:        user,
+		Permissions: permissions,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // Logout godoc

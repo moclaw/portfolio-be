@@ -27,6 +27,9 @@ func InitSQLite(databaseURL string) (*gorm.DB, error) {
 func Migrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.RolePermission{},
 		&models.Content{},
 		&models.Upload{},
 		&models.Resource{},
@@ -48,6 +51,16 @@ func IsEmpty(db *gorm.DB) bool {
 
 // Seed populates the database with initial data
 func Seed(db *gorm.DB) error {
+	// First, seed permissions
+	if err := seedPermissions(db); err != nil {
+		return err
+	}
+
+	// Then seed roles
+	if err := seedRoles(db); err != nil {
+		return err
+	}
+
 	// Seed Admin User
 	adminUser := models.User{
 		Username: "admin",
@@ -64,6 +77,13 @@ func Seed(db *gorm.DB) error {
 		// Admin user doesn't exist, create it
 		if err := db.Create(&adminUser).Error; err != nil {
 			return err
+		}
+
+		// Assign admin role to admin user
+		var adminRole models.Role
+		if err := db.Where("name = ?", "admin").First(&adminRole).Error; err == nil {
+			adminUser.RoleID = &adminRole.ID
+			db.Save(&adminUser)
 		}
 	}
 
@@ -242,6 +262,106 @@ func Seed(db *gorm.DB) error {
 		if err := db.FirstOrCreate(&project, models.Project{Name: project.Name}).Error; err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// seedPermissions creates default permissions
+func seedPermissions(db *gorm.DB) error {
+	resources := []string{"users", "roles", "permissions", "projects", "technologies", "experiences", "testimonials", "contacts", "services", "uploads"}
+	actions := []string{"create", "read", "update", "delete"}
+
+	for _, resource := range resources {
+		for _, action := range actions {
+			permission := models.Permission{
+				Name:        resource + ":" + action,
+				Description: "Permission to " + action + " " + resource,
+				Resource:    resource,
+				Action:      action,
+				IsActive:    true,
+			}
+
+			if err := db.FirstOrCreate(&permission, models.Permission{Name: permission.Name}).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// seedRoles creates default roles with permissions
+func seedRoles(db *gorm.DB) error {
+	// Create admin role with all permissions
+	adminRole := models.Role{
+		Name:        "admin",
+		Description: "Administrator with full access",
+		IsActive:    true,
+	}
+
+	if err := db.FirstOrCreate(&adminRole, models.Role{Name: adminRole.Name}).Error; err != nil {
+		return err
+	}
+
+	// Get all permissions for admin role
+	var allPermissions []models.Permission
+	if err := db.Find(&allPermissions).Error; err != nil {
+		return err
+	}
+
+	// Assign all permissions to admin role
+	if err := db.Model(&adminRole).Association("Permissions").Replace(allPermissions); err != nil {
+		return err
+	}
+
+	// Create user role with only read permissions
+	userRole := models.Role{
+		Name:        "user",
+		Description: "Regular user with read-only access",
+		IsActive:    true,
+	}
+
+	if err := db.FirstOrCreate(&userRole, models.Role{Name: userRole.Name}).Error; err != nil {
+		return err
+	}
+
+	// Get only read permissions for user role
+	var readPermissions []models.Permission
+	if err := db.Where("action = ?", "read").Find(&readPermissions).Error; err != nil {
+		return err
+	}
+
+	// Assign read permissions to user role
+	if err := db.Model(&userRole).Association("Permissions").Replace(readPermissions); err != nil {
+		return err
+	}
+
+	// Create viewer role with only view permissions for specific resources
+	viewerRole := models.Role{
+		Name:        "viewer",
+		Description: "Viewer with limited read access",
+		IsActive:    true,
+	}
+
+	if err := db.FirstOrCreate(&viewerRole, models.Role{Name: viewerRole.Name}).Error; err != nil {
+		return err
+	}
+
+	// Get specific read permissions for viewer role (excluding sensitive data)
+	viewerResources := []string{"projects", "technologies", "experiences", "testimonials", "services"}
+	var viewerPermissions []models.Permission
+	for _, resource := range viewerResources {
+		var permissions []models.Permission
+		if err := db.Where("resource = ? AND action = ?", resource, "read").Find(&permissions).Error; err != nil {
+			return err
+		}
+		viewerPermissions = append(viewerPermissions, permissions...)
+	}
+
+	// Assign specific read permissions to viewer role
+	if err := db.Model(&viewerRole).Association("Permissions").Replace(viewerPermissions); err != nil {
+		return err
 	}
 
 	return nil

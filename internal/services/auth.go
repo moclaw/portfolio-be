@@ -52,6 +52,13 @@ func (s *AuthService) Register(req *models.RegisterRequest) (*models.User, error
 		return nil, err
 	}
 
+	// Assign default "user" role to new user
+	userRole, err := s.userRepo.GetRoleByName("user")
+	if err == nil {
+		user.RoleID = &userRole.ID
+		s.userRepo.Update(user)
+	}
+
 	return user, nil
 }
 

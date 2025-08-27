@@ -329,3 +329,44 @@ func (h *UserHandler) ToggleUserStatus(c *gin.Context) {
 	user, _ = h.userRepo.GetByID(uint(id))
 	c.JSON(http.StatusOK, user)
 }
+
+// AssignRole assigns a role to a user
+func (h *UserHandler) AssignRole(c *gin.Context) {
+	var req models.UserRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if user exists
+	_, err := h.userRepo.GetByID(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Assign role to user
+	if err := h.userRepo.AssignRole(req.UserID, req.RoleID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Role assigned successfully"})
+}
+
+// GetUserPermissions gets all permissions for a user
+func (h *UserHandler) GetUserPermissions(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	permissions, err := h.userRepo.GetUserPermissions(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
+}

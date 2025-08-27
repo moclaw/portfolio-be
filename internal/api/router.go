@@ -45,6 +45,8 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	testimonialRepo := repository.NewTestimonialRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	contactRepo := repository.NewContactRepository(db)
+	roleRepo := repository.NewRoleRepository(db)
+	permissionRepo := repository.NewPermissionRepository(db)
 
 	// Initialize services
 	contentService := services.NewContentService(contentRepo)
@@ -58,6 +60,11 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	jwtService := services.NewJWTService(cfg.JWTConfig.SecretKey, cfg.JWTConfig.Issuer)
 	authService := services.NewAuthService(userRepo, jwtService)
 	contactService := services.NewContactService(contactRepo)
+	roleService := services.NewRoleService(roleRepo, permissionRepo, userRepo)
+	permissionService := services.NewPermissionService(permissionRepo)
+
+	// Initialize middleware
+	permissionMiddleware := middleware.NewPermissionMiddleware(userRepo)
 
 	// Initialize Cron Service
 	cronService := services.NewCronService(resourceService, uploadService)
@@ -74,11 +81,13 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	projectHandler := handlers.NewProjectHandler(projectService)
 	testimonialHandler := handlers.NewTestimonialHandler(testimonialService)
 	portfolioHandler := handlers.NewPortfolioHandler(experienceService, serviceService, technologyService, projectService, testimonialService)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, permissionMiddleware)
 	userHandler := handlers.NewUserHandler(userRepo)
 	contactHandler := handlers.NewContactHandler(contactService)
 	statsHandler := handlers.NewStatsHandler(projectService, experienceService, technologyService, serviceService, testimonialService, contactService)
 	adminOrderHandler := handlers.NewAdminOrderHandler(projectService, experienceService, technologyService, serviceService, testimonialService)
+	roleHandler := handlers.NewRoleHandler(roleService)
+	permissionHandler := handlers.NewPermissionHandler(permissionService)
 
 	// Portfolio endpoint (combined data)
 	router.GET("/api/portfolio", portfolioHandler.GetPortfolioData)
@@ -105,71 +114,94 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 	admin.Use(middleware.AdminMiddleware())
 	{
 		// User management
-		admin.GET("/users", userHandler.GetUsers)
-		admin.POST("/users", userHandler.CreateUser)
-		admin.GET("/users/:id", userHandler.GetUser)
-		admin.PUT("/users/:id", userHandler.UpdateUser)
-		admin.PATCH("/users/:id/password", userHandler.UpdateUserPassword)
-		admin.DELETE("/users/:id", userHandler.DeleteUser)
-		admin.PATCH("/users/:id/toggle-status", userHandler.ToggleUserStatus)
+		admin.GET("/users", permissionMiddleware.RequirePermission("users", "read"), userHandler.GetUsers)
+		admin.POST("/users", permissionMiddleware.RequirePermission("users", "create"), userHandler.CreateUser)
+		admin.GET("/users/:id", permissionMiddleware.RequirePermission("users", "read"), userHandler.GetUser)
+		admin.PUT("/users/:id", permissionMiddleware.RequirePermission("users", "update"), userHandler.UpdateUser)
+		admin.PATCH("/users/:id/password", permissionMiddleware.RequirePermission("users", "update"), userHandler.UpdateUserPassword)
+		admin.DELETE("/users/:id", permissionMiddleware.RequirePermission("users", "delete"), userHandler.DeleteUser)
+		admin.PATCH("/users/:id/toggle-status", permissionMiddleware.RequirePermission("users", "update"), userHandler.ToggleUserStatus)
+		admin.POST("/users/assign-role", permissionMiddleware.RequirePermission("users", "update"), userHandler.AssignRole)
+		admin.GET("/users/:id/permissions", permissionMiddleware.RequirePermission("users", "read"), userHandler.GetUserPermissions)
+
+		// Role management
+		admin.GET("/roles", permissionMiddleware.RequirePermission("roles", "read"), roleHandler.GetAllRoles)
+		admin.POST("/roles", permissionMiddleware.RequirePermission("roles", "create"), roleHandler.CreateRole)
+		admin.GET("/roles/:id", permissionMiddleware.RequirePermission("roles", "read"), roleHandler.GetRole)
+		admin.PUT("/roles/:id", permissionMiddleware.RequirePermission("roles", "update"), roleHandler.UpdateRole)
+		admin.DELETE("/roles/:id", permissionMiddleware.RequirePermission("roles", "delete"), roleHandler.DeleteRole)
+		admin.POST("/roles/:id/permissions", permissionMiddleware.RequirePermission("roles", "update"), roleHandler.AssignPermissions)
+		admin.GET("/roles/:id/permissions", permissionMiddleware.RequirePermission("roles", "read"), roleHandler.GetRolePermissions)
+
+		// Permission management
+		admin.GET("/permissions", permissionMiddleware.RequirePermission("permissions", "read"), permissionHandler.GetAllPermissions)
+		admin.POST("/permissions", permissionMiddleware.RequirePermission("permissions", "create"), permissionHandler.CreatePermission)
+		admin.GET("/permissions/:id", permissionMiddleware.RequirePermission("permissions", "read"), permissionHandler.GetPermission)
+		admin.PUT("/permissions/:id", permissionMiddleware.RequirePermission("permissions", "update"), permissionHandler.UpdatePermission)
+		admin.DELETE("/permissions/:id", permissionMiddleware.RequirePermission("permissions", "delete"), permissionHandler.DeletePermission)
+		admin.GET("/permissions/resource/:resource", permissionMiddleware.RequirePermission("permissions", "read"), permissionHandler.GetPermissionsByResource)
+		admin.POST("/permissions/initialize", permissionMiddleware.RequirePermission("permissions", "create"), permissionHandler.InitializeDefaultPermissions)
 
 		// Content management
-		admin.POST("/contents", contentHandler.CreateContent)
-		admin.PUT("/contents/:id", contentHandler.UpdateContent)
-		admin.DELETE("/contents/:id", contentHandler.DeleteContent)
+		admin.POST("/contents", permissionMiddleware.RequirePermission("contents", "create"), contentHandler.CreateContent)
+		admin.PUT("/contents/:id", permissionMiddleware.RequirePermission("contents", "update"), contentHandler.UpdateContent)
+		admin.DELETE("/contents/:id", permissionMiddleware.RequirePermission("contents", "delete"), contentHandler.DeleteContent)
 
 		// Experience management
-		admin.POST("/experiences", experienceHandler.CreateExperience)
-		admin.PUT("/experiences/:id", experienceHandler.UpdateExperience)
-		admin.DELETE("/experiences/:id", experienceHandler.DeleteExperience)
+		admin.POST("/experiences", permissionMiddleware.RequirePermission("experiences", "create"), experienceHandler.CreateExperience)
+		admin.PUT("/experiences/:id", permissionMiddleware.RequirePermission("experiences", "update"), experienceHandler.UpdateExperience)
+		admin.DELETE("/experiences/:id", permissionMiddleware.RequirePermission("experiences", "delete"), experienceHandler.DeleteExperience)
 
 		// Service management
-		admin.POST("/services", serviceHandler.CreateService)
-		admin.PUT("/services/:id", serviceHandler.UpdateService)
-		admin.DELETE("/services/:id", serviceHandler.DeleteService)
+		admin.POST("/services", permissionMiddleware.RequirePermission("services", "create"), serviceHandler.CreateService)
+		admin.PUT("/services/:id", permissionMiddleware.RequirePermission("services", "update"), serviceHandler.UpdateService)
+		admin.DELETE("/services/:id", permissionMiddleware.RequirePermission("services", "delete"), serviceHandler.DeleteService)
 
 		// Technology management
-		admin.POST("/technologies", technologyHandler.CreateTechnology)
-		admin.PUT("/technologies/:id", technologyHandler.UpdateTechnology)
-		admin.DELETE("/technologies/:id", technologyHandler.DeleteTechnology)
+		admin.POST("/technologies", permissionMiddleware.RequirePermission("technologies", "create"), technologyHandler.CreateTechnology)
+		admin.PUT("/technologies/:id", permissionMiddleware.RequirePermission("technologies", "update"), technologyHandler.UpdateTechnology)
+		admin.DELETE("/technologies/:id", permissionMiddleware.RequirePermission("technologies", "delete"), technologyHandler.DeleteTechnology)
 
 		// Project management
-		admin.POST("/projects", projectHandler.CreateProject)
-		admin.PUT("/projects/:id", projectHandler.UpdateProject)
-		admin.DELETE("/projects/:id", projectHandler.DeleteProject)
+		admin.POST("/projects", permissionMiddleware.RequirePermission("projects", "create"), projectHandler.CreateProject)
+		admin.PUT("/projects/:id", permissionMiddleware.RequirePermission("projects", "update"), projectHandler.UpdateProject)
+		admin.DELETE("/projects/:id", permissionMiddleware.RequirePermission("projects", "delete"), projectHandler.DeleteProject)
 
 		// Testimonial management
-		admin.POST("/testimonials", testimonialHandler.CreateTestimonial)
-		admin.PUT("/testimonials/:id", testimonialHandler.UpdateTestimonial)
-		admin.DELETE("/testimonials/:id", testimonialHandler.DeleteTestimonial)
+		admin.POST("/testimonials", permissionMiddleware.RequirePermission("testimonials", "create"), testimonialHandler.CreateTestimonial)
+		admin.PUT("/testimonials/:id", permissionMiddleware.RequirePermission("testimonials", "update"), testimonialHandler.UpdateTestimonial)
+		admin.DELETE("/testimonials/:id", permissionMiddleware.RequirePermission("testimonials", "delete"), testimonialHandler.DeleteTestimonial)
 
 		// Contact management
-		admin.GET("/contacts", contactHandler.GetContacts)
-		admin.GET("/contacts/:id", contactHandler.GetContact)
-		admin.PUT("/contacts/:id", contactHandler.UpdateContact)
-		admin.DELETE("/contacts/:id", contactHandler.DeleteContact)
-		admin.GET("/contacts/unread-count", contactHandler.GetUnreadCount)
-		admin.PATCH("/contacts/:id/mark-read", contactHandler.MarkAsRead)
+		admin.GET("/contacts", permissionMiddleware.RequirePermission("contacts", "read"), contactHandler.GetContacts)
+		admin.GET("/contacts/:id", permissionMiddleware.RequirePermission("contacts", "read"), contactHandler.GetContact)
+		admin.PUT("/contacts/:id", permissionMiddleware.RequirePermission("contacts", "update"), contactHandler.UpdateContact)
+		admin.DELETE("/contacts/:id", permissionMiddleware.RequirePermission("contacts", "delete"), contactHandler.DeleteContact)
+		admin.GET("/contacts/unread-count", permissionMiddleware.RequirePermission("contacts", "read"), contactHandler.GetUnreadCount)
+		admin.PATCH("/contacts/:id/mark-read", permissionMiddleware.RequirePermission("contacts", "update"), contactHandler.MarkAsRead)
 
 		// Upload management
-		admin.POST("/uploads", uploadHandler.UploadFile)
-		admin.DELETE("/uploads/:id", uploadHandler.DeleteUpload)
+		admin.POST("/uploads", permissionMiddleware.RequirePermission("uploads", "create"), uploadHandler.UploadFile)
+		admin.DELETE("/uploads/:id", permissionMiddleware.RequirePermission("uploads", "delete"), uploadHandler.DeleteUpload)
 
 		// Resource management
-		admin.POST("/resources", resourceHandler.CreateResource)
-		admin.GET("/resources", resourceHandler.GetAllResources)
-		admin.GET("/resources/:id", resourceHandler.GetResource)
-		admin.PUT("/resources/:id", resourceHandler.UpdateResource)
-		admin.DELETE("/resources/:id", resourceHandler.DeleteResource)
-		admin.GET("/resources/stats", resourceHandler.GetResourceStats)
-		admin.POST("/resources/refresh-urls", resourceHandler.RefreshExpiredURLs)
+		admin.POST("/resources", permissionMiddleware.RequirePermission("uploads", "create"), resourceHandler.CreateResource)
+		admin.GET("/resources", permissionMiddleware.RequirePermission("uploads", "read"), resourceHandler.GetAllResources)
+		admin.GET("/resources/:id", permissionMiddleware.RequirePermission("uploads", "read"), resourceHandler.GetResource)
+		admin.PUT("/resources/:id", permissionMiddleware.RequirePermission("uploads", "update"), resourceHandler.UpdateResource)
+		admin.DELETE("/resources/:id", permissionMiddleware.RequirePermission("uploads", "delete"), resourceHandler.DeleteResource)
+		admin.GET("/resources/stats", permissionMiddleware.RequirePermission("uploads", "read"), resourceHandler.GetResourceStats)
+		admin.POST("/resources/refresh-urls", permissionMiddleware.RequirePermission("uploads", "update"), resourceHandler.RefreshExpiredURLs)
 
 		// Order management
-		admin.PUT("/projects/order", adminOrderHandler.UpdateProjectsOrder)
-		admin.PUT("/experiences/order", adminOrderHandler.UpdateExperiencesOrder)
-		admin.PUT("/technologies/order", adminOrderHandler.UpdateTechnologiesOrder)
-		admin.PUT("/services/order", adminOrderHandler.UpdateServicesOrder)
-		admin.PUT("/testimonials/order", adminOrderHandler.UpdateTestimonialsOrder)
+		admin.PUT("/projects/order", permissionMiddleware.RequirePermission("projects", "update"), adminOrderHandler.UpdateProjectsOrder)
+		admin.PUT("/experiences/order", permissionMiddleware.RequirePermission("experiences", "update"), adminOrderHandler.UpdateExperiencesOrder)
+		admin.PUT("/technologies/order", permissionMiddleware.RequirePermission("technologies", "update"), adminOrderHandler.UpdateTechnologiesOrder)
+		admin.PUT("/services/order", permissionMiddleware.RequirePermission("services", "update"), adminOrderHandler.UpdateServicesOrder)
+		admin.PUT("/testimonials/order", permissionMiddleware.RequirePermission("testimonials", "update"), adminOrderHandler.UpdateTestimonialsOrder)
+
+		// Stats (read-only for most admins)
+		admin.GET("/stats", permissionMiddleware.RequireAnyPermission([]string{"projects:read", "experiences:read", "technologies:read", "services:read", "testimonials:read", "contacts:read"}), statsHandler.GetCounts)
 	}
 
 	// Public API routes (read-only)

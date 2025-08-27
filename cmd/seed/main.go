@@ -27,6 +27,9 @@ func main() {
 		&models.Project{},
 		&models.Testimonial{},
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.RolePermission{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
@@ -34,12 +37,131 @@ func main() {
 
 	log.Println("Starting database seeding...")
 
-	// Seed Admin User
+	// First, seed Permissions
+	permissions := []models.Permission{
+		{Name: "read", Resource: "users", Description: "View users"},
+		{Name: "create", Resource: "users", Description: "Create users"},
+		{Name: "update", Resource: "users", Description: "Update users"},
+		{Name: "delete", Resource: "users", Description: "Delete users"},
+		{Name: "read", Resource: "roles", Description: "View roles"},
+		{Name: "create", Resource: "roles", Description: "Create roles"},
+		{Name: "update", Resource: "roles", Description: "Update roles"},
+		{Name: "delete", Resource: "roles", Description: "Delete roles"},
+		{Name: "read", Resource: "permissions", Description: "View permissions"},
+		{Name: "create", Resource: "permissions", Description: "Create permissions"},
+		{Name: "update", Resource: "permissions", Description: "Update permissions"},
+		{Name: "delete", Resource: "permissions", Description: "Delete permissions"},
+		{Name: "read", Resource: "projects", Description: "View projects"},
+		{Name: "create", Resource: "projects", Description: "Create projects"},
+		{Name: "update", Resource: "projects", Description: "Update projects"},
+		{Name: "delete", Resource: "projects", Description: "Delete projects"},
+		{Name: "read", Resource: "experiences", Description: "View experiences"},
+		{Name: "create", Resource: "experiences", Description: "Create experiences"},
+		{Name: "update", Resource: "experiences", Description: "Update experiences"},
+		{Name: "delete", Resource: "experiences", Description: "Delete experiences"},
+		{Name: "read", Resource: "technologies", Description: "View technologies"},
+		{Name: "create", Resource: "technologies", Description: "Create technologies"},
+		{Name: "update", Resource: "technologies", Description: "Update technologies"},
+		{Name: "delete", Resource: "technologies", Description: "Delete technologies"},
+		{Name: "read", Resource: "services", Description: "View services"},
+		{Name: "create", Resource: "services", Description: "Create services"},
+		{Name: "update", Resource: "services", Description: "Update services"},
+		{Name: "delete", Resource: "services", Description: "Delete services"},
+		{Name: "read", Resource: "testimonials", Description: "View testimonials"},
+		{Name: "create", Resource: "testimonials", Description: "Create testimonials"},
+		{Name: "update", Resource: "testimonials", Description: "Update testimonials"},
+		{Name: "delete", Resource: "testimonials", Description: "Delete testimonials"},
+		{Name: "read", Resource: "contacts", Description: "View contacts"},
+		{Name: "create", Resource: "contacts", Description: "Create contacts"},
+		{Name: "update", Resource: "contacts", Description: "Update contacts"},
+		{Name: "delete", Resource: "contacts", Description: "Delete contacts"},
+	}
+
+	for _, permission := range permissions {
+		var existingPermission models.Permission
+		result := db.Where("name = ? AND resource = ?", permission.Name, permission.Resource).First(&existingPermission)
+		if result.Error != nil {
+			if err := db.Create(&permission).Error; err != nil {
+				log.Printf("Failed to create permission %s:%s: %v", permission.Resource, permission.Name, err)
+			} else {
+				log.Printf("✓ Created permission: %s:%s", permission.Resource, permission.Name)
+			}
+		}
+	}
+
+	// Then, seed Roles
+	roles := []models.Role{
+		{Name: "admin", Description: "Administrator with full access"},
+		{Name: "user", Description: "Regular user with read-only access"},
+	}
+
+	var adminRole, userRole models.Role
+	for _, role := range roles {
+		var existingRole models.Role
+		result := db.Where("name = ?", role.Name).First(&existingRole)
+		if result.Error != nil {
+			if err := db.Create(&role).Error; err != nil {
+				log.Printf("Failed to create role %s: %v", role.Name, err)
+			} else {
+				log.Printf("✓ Created role: %s", role.Name)
+			}
+		}
+
+		// Store references for permission assignment
+		if role.Name == "admin" {
+			db.Where("name = ?", "admin").First(&adminRole)
+		} else if role.Name == "user" {
+			db.Where("name = ?", "user").First(&userRole)
+		}
+	}
+
+	// Assign all permissions to admin role
+	if adminRole.ID != 0 {
+		var allPermissions []models.Permission
+		db.Find(&allPermissions)
+		for _, permission := range allPermissions {
+			var existingRolePermission models.RolePermission
+			result := db.Where("role_id = ? AND permission_id = ?", adminRole.ID, permission.ID).First(&existingRolePermission)
+			if result.Error != nil {
+				rolePermission := models.RolePermission{
+					RoleID:       adminRole.ID,
+					PermissionID: permission.ID,
+				}
+				if err := db.Create(&rolePermission).Error; err != nil {
+					log.Printf("Failed to assign permission %s:%s to admin role: %v", permission.Resource, permission.Name, err)
+				}
+			}
+		}
+		log.Println("✓ Assigned all permissions to admin role")
+	}
+
+	// Assign only read permissions to user role (for all resources)
+	if userRole.ID != 0 {
+		var readPermissions []models.Permission
+		db.Where("name = ?", "read").Find(&readPermissions)
+		for _, permission := range readPermissions {
+			var existingRolePermission models.RolePermission
+			result := db.Where("role_id = ? AND permission_id = ?", userRole.ID, permission.ID).First(&existingRolePermission)
+			if result.Error != nil {
+				rolePermission := models.RolePermission{
+					RoleID:       userRole.ID,
+					PermissionID: permission.ID,
+				}
+				if err := db.Create(&rolePermission).Error; err != nil {
+					log.Printf("Failed to assign permission %s:%s to user role: %v", permission.Resource, permission.Name, err)
+				}
+			}
+		}
+		log.Println("✓ Assigned read permissions for all resources to user role")
+	}
+
+	// Now seed Admin User with proper role_id
 	adminUser := models.User{
 		Username: "admin",
 		Email:    "admin@moclaw.dev",
 		Password: "admin123", // This will be hashed automatically by BeforeCreate hook
 		Role:     "admin",
+		RoleID:   &adminRole.ID,
 		IsActive: true,
 	}
 
@@ -58,6 +180,11 @@ func main() {
 		}
 	} else {
 		log.Println("✓ Admin user already exists")
+		// Update admin user to have admin role if not set
+		if existingUser.RoleID == nil || *existingUser.RoleID != adminRole.ID {
+			db.Model(&existingUser).Update("role_id", adminRole.ID)
+			log.Println("✓ Updated admin user with admin role")
+		}
 	}
 
 	// Seed Services
