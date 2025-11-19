@@ -27,6 +27,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -o app ./cmd/server
 
+# Build the database seed binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags='-w -s -extldflags "-static"' \
+    -o seed ./cmd/seed
+
 # Stage 2: Run
 FROM alpine:latest
 
@@ -40,10 +46,11 @@ WORKDIR /app
 RUN mkdir -p /app/logs /app/data && \
     chown -R appuser:appuser /app
 
-# Copy CA certificates and binary from builder
+# Copy CA certificates and binaries from builder
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/app ./app
-RUN chown appuser:appuser /app/app && chmod +x /app/app
+COPY --from=builder /app/seed ./seed
+RUN chown appuser:appuser /app/app /app/seed && chmod +x /app/app /app/seed
 
 # Switch to non-root user
 USER appuser
@@ -51,5 +58,5 @@ USER appuser
 # Expose port
 EXPOSE 5303
 
-# Run the binary
+# Run the API server by default (seed binary can be executed manually when needed)
 CMD ["./app"]

@@ -113,6 +113,25 @@ jobs:
             echo "No existing container found."
           fi
 
+      - name: "Run Database Seed"
+        run: |
+          echo "Running database seed..."
+          docker run --rm \
+            -e USE_SECRETS_MANAGER=true \
+            -e SECRET_NAME=portfolio-secrets \
+            -e AWS_REGION=us-east-1 \
+            -e AWS_ENDPOINT_URL=http://localhost:4566 \
+            -e AWS_ACCESS_KEY_ID=test \
+            -e AWS_SECRET_ACCESS_KEY=test \
+            -e ENVIRONMENT=development \
+            -e PORT=5303 \
+            -e HOST=0.0.0.0 \
+            --network host \
+            -v "$(pwd)/logs:/app/logs" \
+            -v "$(pwd)/data:/app/data" \
+            ${{ env.DOCKER_IMAGE }}:${{ env.DOCKER_TAG }} ./seed
+          echo "✅ Database seed completed"
+
       - name: "Deploy with Docker"
         run: |
           echo "Starting container deployment..."

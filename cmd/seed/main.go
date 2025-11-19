@@ -10,6 +10,10 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.Load()
+	bucket := cfg.S3Config.Bucket
+	if bucket == "" {
+		bucket = "portfolio-bucket"
+	}
 
 	// Initialize database
 	db, err := database.InitSQLite(cfg.DatabaseURL)
@@ -371,6 +375,186 @@ func main() {
 			log.Printf("Failed to create project %s: %v", project.Name, err)
 		} else {
 			log.Printf("Created/Updated project: %s", project.Name)
+		}
+	}
+
+	// Seed Content (blog posts / case studies)
+	contents := []models.Content{
+		{
+			Title:       "Designing Resilient Backend APIs",
+			Description: "Lessons from building portfolio-scale APIs with Go and SQLite",
+			Body: `Building resilient backend services starts with predictable contracts and well-defined fallbacks.
+In this article I walk through the guardrails I rely on—structured logging, idempotent handlers, and
+observability hooks—to keep personal projects running even when traffic spikes unexpectedly.`,
+			Category: "engineering",
+			Tags:     "go,backend,resilience",
+			Status:   "published",
+			ImageURL: "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=1200&auto=format&fit=crop",
+		},
+		{
+			Title:       "Improving Developer Experience with Automation",
+			Description: "Automating testing, builds, and deployments for a solo portfolio project",
+			Body: `Automation gives me headroom to focus on storytelling instead of plumbing.
+Here is how I wired Air for hot reloads, swag for documentation, and Makefile targets to keep chores one command away.`,
+			Category: "productivity",
+			Tags:     "automation,devx,make",
+			Status:   "published",
+			ImageURL: "https://images.unsplash.com/photo-1483058712412-4245e9b90334?w=1200&auto=format&fit=crop",
+		},
+		{
+			Title:       "From Sketch to Launch: Crafting Portfolio Case Studies",
+			Description: "A framework for turning raw project notes into engaging portfolio stories",
+			Body: `Great case studies share just enough context, highlight constraints, and celebrate outcomes.
+This write-up details how I gather metrics, design visuals, and structure the narrative for the projects listed on my site.`,
+			Category: "storytelling",
+			Tags:     "portfolio,writing,case-study",
+			Status:   "draft",
+			ImageURL: "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?w=1200&auto=format&fit=crop",
+		},
+	}
+
+	for _, content := range contents {
+		seed := content
+		if err := db.Where("title = ?", seed.Title).FirstOrCreate(&seed).Error; err != nil {
+			log.Printf("Failed to create content %s: %v", seed.Title, err)
+		} else {
+			log.Printf("Created/Found content: %s", seed.Title)
+		}
+	}
+
+	// Seed Upload metadata so resources can reference stable assets
+	uploads := []models.Upload{
+		{
+			FileName:     "hero-banner.webp",
+			OriginalName: "hero-banner.webp",
+			FileSize:     245760,
+			ContentType:  "image/webp",
+			S3Key:        "resources/hero-banner.webp",
+			S3Bucket:     bucket,
+			URL:          "https://" + bucket + ".s3.amazonaws.com/resources/hero-banner.webp",
+			IsActive:     true,
+		},
+		{
+			FileName:     "profile-avatar.png",
+			OriginalName: "profile-avatar.png",
+			FileSize:     98304,
+			ContentType:  "image/png",
+			S3Key:        "resources/profile-avatar.png",
+			S3Bucket:     bucket,
+			URL:          "https://" + bucket + ".s3.amazonaws.com/resources/profile-avatar.png",
+			IsActive:     true,
+		},
+		{
+			FileName:     "moclaw-resume.pdf",
+			OriginalName: "moclaw-resume.pdf",
+			FileSize:     524288,
+			ContentType:  "application/pdf",
+			S3Key:        "documents/moclaw-resume.pdf",
+			S3Bucket:     bucket,
+			URL:          "https://" + bucket + ".s3.amazonaws.com/documents/moclaw-resume.pdf",
+			IsActive:     true,
+		},
+	}
+
+	uploadIDs := make(map[string]uint)
+	for _, upload := range uploads {
+		seed := upload
+		if err := db.Where("s3_key = ?", seed.S3Key).FirstOrCreate(&seed).Error; err != nil {
+			log.Printf("Failed to create upload %s: %v", seed.S3Key, err)
+		} else {
+			uploadIDs[seed.S3Key] = seed.ID
+			log.Printf("Created/Found upload: %s", seed.S3Key)
+		}
+	}
+
+	// Seed Resources referencing the uploads above
+	type resourceSeed struct {
+		Record    models.Resource
+		UploadKey string
+	}
+
+	resourceSeeds := []resourceSeed{
+		{
+			Record: models.Resource{
+				Name:        "Hero Banner",
+				Description: "Primary hero background used on the landing page",
+				Type:        models.ResourceTypeImage,
+				Category:    "hero",
+				Tags:        "portfolio,hero,landing",
+				Alt:         "Code editor screenshot on gradient background",
+				IsPublic:    true,
+				IsActive:    true,
+			},
+			UploadKey: "resources/hero-banner.webp",
+		},
+		{
+			Record: models.Resource{
+				Name:        "Profile Avatar",
+				Description: "Square avatar used for testimonials and about section",
+				Type:        models.ResourceTypeImage,
+				Category:    "profile",
+				Tags:        "avatar,brand",
+				Alt:         "Moclaw avatar illustration",
+				IsPublic:    true,
+				IsActive:    true,
+			},
+			UploadKey: "resources/profile-avatar.png",
+		},
+		{
+			Record: models.Resource{
+				Name:        "Resume PDF",
+				Description: "Latest résumé shared via the portfolio",
+				Type:        models.ResourceTypeDocument,
+				Category:    "documents",
+				Tags:        "resume,cv",
+				Alt:         "Downloadable Moclaw resume",
+				IsPublic:    true,
+				IsActive:    true,
+			},
+			UploadKey: "documents/moclaw-resume.pdf",
+		},
+	}
+
+	for _, seed := range resourceSeeds {
+		uploadID, ok := uploadIDs[seed.UploadKey]
+		if !ok {
+			log.Printf("Skipping resource %s because upload %s was not created", seed.Record.Name, seed.UploadKey)
+			continue
+		}
+
+		record := seed.Record
+		record.UploadID = uploadID
+		if err := db.Where("name = ?", record.Name).FirstOrCreate(&record).Error; err != nil {
+			log.Printf("Failed to create resource %s: %v", record.Name, err)
+		} else {
+			log.Printf("Created/Found resource: %s", record.Name)
+		}
+	}
+
+	// Seed sample contacts for dashboard/testing
+	contacts := []models.Contact{
+		{
+			Name:    "Jane Product",
+			Email:   "jane.product@example.com",
+			Subject: "Interested in a consultation",
+			Message: "Hi! I'm exploring a freelance engagement and would love to chat about availability.",
+			Status:  "unread",
+		},
+		{
+			Name:    "Startup Founder",
+			Email:   "founder@launchpad.dev",
+			Subject: "Great work on Car Rent",
+			Message: "Your Car Rent case study resonated with our roadmap. Could we schedule a call next week?",
+			Status:  "read",
+		},
+	}
+
+	for _, contact := range contacts {
+		seed := contact
+		if err := db.Where("email = ? AND subject = ?", seed.Email, seed.Subject).FirstOrCreate(&seed).Error; err != nil {
+			log.Printf("Failed to create contact from %s: %v", seed.Email, err)
+		} else {
+			log.Printf("Created/Found contact lead: %s", seed.Email)
 		}
 	}
 
