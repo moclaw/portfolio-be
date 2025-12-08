@@ -8,16 +8,17 @@ import (
 )
 
 type User struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	Username  string    `json:"username" gorm:"unique;not null"`
-	Email     string    `json:"email" gorm:"unique;not null"`
-	Password  string    `json:"-" gorm:"not null"`        // Hide password in JSON responses
-	Role      string    `json:"role" gorm:"default:user"` // Keep for backward compatibility
-	RoleID    *uint     `json:"role_id" gorm:"index"`
-	UserRole  *Role     `json:"user_role,omitempty" gorm:"foreignKey:RoleID"`
-	IsActive  bool      `json:"is_active" gorm:"default:true"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                 uint      `json:"id" gorm:"primaryKey"`
+	Username           string    `json:"username" gorm:"unique;not null"`
+	Email              string    `json:"email" gorm:"unique;not null"`
+	Password           string    `json:"-" gorm:"not null"`        // Hide password in JSON responses
+	Role               string    `json:"role" gorm:"default:user"` // Keep for backward compatibility
+	RoleID             *uint     `json:"role_id" gorm:"index"`
+	UserRole           *Role     `json:"user_role,omitempty" gorm:"foreignKey:RoleID"`
+	IsActive           bool      `json:"is_active" gorm:"default:true"`
+	MustChangePassword bool      `json:"must_change_password" gorm:"default:false"` // Force password change on first login
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 type LoginRequest struct {
@@ -32,9 +33,17 @@ type RegisterRequest struct {
 }
 
 type LoginResponse struct {
-	Token     string `json:"token"`
-	User      User   `json:"user"`
-	ExpiresAt int64  `json:"expires_at"`
+	Token              string `json:"token"`
+	User               User   `json:"user"`
+	ExpiresAt          int64  `json:"expires_at"`
+	MustChangePassword bool   `json:"must_change_password"` // Indicates if user must change password
+}
+
+// ChangePasswordRequest for changing user password
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" binding:"required,eqfield=NewPassword"`
 }
 
 // HashPassword hashes the password using bcrypt

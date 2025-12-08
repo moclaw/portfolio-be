@@ -111,7 +111,12 @@ func (s *S3Service) UploadFile(file multipart.File, header *multipart.FileHeader
 		}
 	}
 
-	url := fmt.Sprintf("%s/%s/%s", "https://media.moclawr.com", s.bucket, key)
+	// Use public URL if configured, otherwise fall back to endpoint
+	baseURL := s.config.PublicURL
+	if baseURL == "" {
+		baseURL = s.config.Endpoint
+	}
+	url := fmt.Sprintf("%s/%s/%s", baseURL, s.bucket, key)
 
 	return key, url, nil
 }
@@ -129,7 +134,12 @@ func (s *S3Service) DeleteFile(key string) error {
 }
 
 func (s *S3Service) GetFileURL(key string) string {
-	return fmt.Sprintf("%s/%s/%s", s.config.Endpoint, s.bucket, key)
+	// Use public URL if configured, otherwise fall back to endpoint
+	baseURL := s.config.PublicURL
+	if baseURL == "" {
+		baseURL = s.config.Endpoint
+	}
+	return fmt.Sprintf("%s/%s/%s", baseURL, s.bucket, key)
 }
 
 // GeneratePresignedURL generates a presigned URL for file access with expiration

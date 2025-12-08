@@ -56,7 +56,11 @@ RUN chown appuser:appuser /app/app /app/seed && chmod +x /app/app /app/seed
 USER appuser
 
 # Expose port
-EXPOSE 5303
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the API server by default (seed binary can be executed manually when needed)
 CMD ["./app"]

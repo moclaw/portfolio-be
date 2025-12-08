@@ -105,6 +105,7 @@ func SetupRouter(db *gorm.DB, s3Service *services.S3Service, cfg *config.Config)
 		{
 			authProtected.GET("/profile", authHandler.Profile)
 			authProtected.POST("/logout", authHandler.Logout)
+			authProtected.POST("/change-password", authHandler.ChangePassword)
 		}
 	}
 

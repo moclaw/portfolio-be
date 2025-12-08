@@ -89,9 +89,10 @@ func (s *AuthService) Login(req *models.LoginRequest) (*models.LoginResponse, er
 	}
 
 	return &models.LoginResponse{
-		Token:     token,
-		User:      *user,
-		ExpiresAt: expiresAt,
+		Token:              token,
+		User:               *user,
+		ExpiresAt:          expiresAt,
+		MustChangePassword: user.MustChangePassword,
 	}, nil
 }
 
@@ -126,4 +127,38 @@ func (s *AuthService) RefreshToken(tokenString string) (*models.LoginResponse, e
 
 func (s *AuthService) GetUserByID(id uint) (*models.User, error) {
 	return s.userRepo.GetByID(id)
+}
+
+// ChangePassword changes the user's password and clears the MustChangePassword flag
+func (s *AuthService) ChangePassword(userID uint, req *models.ChangePasswordRequest) error {
+	// Get user
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	// Verify current password
+	if err := user.CheckPassword(req.CurrentPassword); err != nil {
+		return errors.New("current password is incorrect")
+	}
+
+	// Check if new password is the same as current password
+	if req.CurrentPassword == req.NewPassword {
+		return errors.New("new password must be different from current password")
+	}
+
+	// Hash and update password
+	if err := user.HashPassword(req.NewPassword); err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	// Clear the MustChangePassword flag
+	user.MustChangePassword = false
+
+	// Save updated user
+	if err := s.userRepo.Update(user); err != nil {
+		return errors.New("failed to update password")
+	}
+
+	return nil
 }

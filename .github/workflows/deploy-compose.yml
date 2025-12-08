@@ -1,0 +1,138 @@
+name: "Deploy with Docker Compose"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  GO_VERSION: "1.24"
+
+jobs:
+  deploy-compose:
+    name: "Deploy with Docker Compose"
+    runs-on: self-hosted
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Create .env file"
+        run: |
+          cat > .env << EOF
+          # Database
+          POSTGRES_USER=portfolio
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=portfolio_db
+          
+          # Redis
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          
+          # JWT
+          JWT_SECRET=${{ secrets.JWT_SECRET_KEY }}
+          
+          # S3 Configuration
+          S3_ACCESS_KEY_ID=${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY=${{ secrets.S3_SECRET_ACCESS_KEY }}
+          AWS_REGION=us-east-1
+          S3_BUCKET=portfolio-uploads
+          S3_PUBLIC_URL=https://media.moclawr.com
+          EOF
+          
+          echo "✅ .env file created"
+
+      - name: "Stop existing services"
+        run: |
+          docker-compose down --remove-orphans || true
+          echo "✅ Existing services stopped"
+
+      - name: "Pull latest images"
+        run: |
+          docker-compose pull postgres redis localstack
+          echo "✅ Images pulled"
+
+      - name: "Build backend"
+        run: |
+          docker-compose build backend
+          echo "✅ Backend built"
+
+      - name: "Start services"
+        run: |
+          docker-compose up -d
+          echo "✅ Services started"
+
+      - name: "Wait for health checks"
+        run: |
+          echo "Waiting for services to be healthy..."
+          sleep 30
+          
+          # Check PostgreSQL
+          docker-compose exec -T postgres pg_isready -U portfolio || exit 1
+          echo "✅ PostgreSQL is ready"
+          
+          # Check Redis
+          docker-compose exec -T redis redis-cli -a ${{ secrets.REDIS_PASSWORD }} ping || exit 1
+          echo "✅ Redis is ready"
+          
+          # Check Backend
+          curl -f http://localhost:8080/health || exit 1
+          echo "✅ Backend is ready"
+
+      - name: "Verify database seeding"
+        run: |
+          echo "Verifying database has been seeded..."
+          
+          # Check if data exists via API
+          SERVICES=$(curl -s http://localhost:8080/api/services | jq '.data | length' 2>/dev/null || echo "0")
+          EXPERIENCES=$(curl -s http://localhost:8080/api/experiences | jq '.data | length' 2>/dev/null || echo "0")
+          TECHNOLOGIES=$(curl -s http://localhost:8080/api/technologies | jq '.data | length' 2>/dev/null || echo "0")
+          PROJECTS=$(curl -s http://localhost:8080/api/projects | jq '.data | length' 2>/dev/null || echo "0")
+          
+          echo "Data counts:"
+          echo "  • Services: $SERVICES"
+          echo "  • Experiences: $EXPERIENCES"
+          echo "  • Technologies: $TECHNOLOGIES"
+          echo "  • Projects: $PROJECTS"
+          
+          # Verify minimum expected data
+          if [ "$SERVICES" -lt 1 ] || [ "$EXPERIENCES" -lt 1 ]; then
+            echo "⚠️ Warning: Database may not be properly seeded"
+            echo "Backend auto-seed should run on empty database"
+          else
+            echo "✅ Database seeding verified"
+          fi
+
+      - name: "Show deployment status"
+        run: |
+          echo "🚀 Docker Compose deployment completed!"
+          echo ""
+          echo "Services Status:"
+          docker-compose ps
+          echo ""
+          echo "Service URLs:"
+          echo "  • Backend API: http://localhost:8080"
+          echo "  • Health Check: http://localhost:8080/health"
+          echo "  • Swagger Docs: http://localhost:8080/swagger/index.html"
+          echo "  • PostgreSQL: localhost:5432"
+          echo "  • Redis: localhost:6379"
+          echo "  • LocalStack S3: http://localhost:4566"
+          echo ""
+          echo "Backend Logs:"
+          docker-compose logs --tail 20 backend
+
+      - name: "Cleanup on failure"
+        if: failure()
+        run: |
+          echo "Deployment failed, showing logs..."
+          docker-compose logs
+          docker-compose down

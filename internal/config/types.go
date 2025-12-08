@@ -4,7 +4,9 @@ package config
 type Config struct {
 	Port                 string
 	Host                 string
+	DatabaseType         string // "postgres" or "sqlite"
 	DatabaseURL          string
+	RedisConfig          RedisConfig
 	S3Config             S3Config
 	JWTConfig            JWTConfig
 	SecretsManagerConfig SecretsManagerConfig
@@ -25,10 +27,20 @@ type S3Config struct {
 	AccessKeyID     string
 	SecretAccessKey string
 	ForcePathStyle  bool
+	PublicURL       string // Public URL for serving files (e.g., https://media.moclawr.com)
 }
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
 	SecretKey string
 	Issuer    string
+}
+
+// RedisConfig holds Redis configuration
+type RedisConfig struct {
+	Host     string
+	Port     string
+	Password string
+	DB       int
+	Enabled  bool
 }

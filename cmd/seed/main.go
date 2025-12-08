@@ -15,8 +15,8 @@ func main() {
 		bucket = "portfolio-bucket"
 	}
 
-	// Initialize database
-	db, err := database.InitSQLite(cfg.DatabaseURL)
+	// Initialize database based on configuration
+	db, err := database.InitDatabase(cfg.DatabaseType, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
@@ -194,21 +194,27 @@ func main() {
 	// Seed Services
 	services := []models.Service{
 		{
-			Title:    "Full Stack Developer",
-			Icon:     "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=100&h=100&fit=crop&crop=center",
+			Title:    ".NET Backend Developer",
+			Icon:     "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dotnetcore/dotnetcore-original.svg",
 			Order:    1,
 			IsActive: true,
 		},
 		{
-			Title:    ".NET Developer",
-			Icon:     "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=100&h=100&fit=crop&crop=center",
+			Title:    "Microservices Architect",
+			Icon:     "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg",
 			Order:    2,
 			IsActive: true,
 		},
 		{
-			Title:    "Software Engineer",
-			Icon:     "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?w=100&h=100&fit=crop&crop=center",
+			Title:    "Cloud Engineer",
+			Icon:     "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg",
 			Order:    3,
+			IsActive: true,
+		},
+		{
+			Title:    "Database Specialist",
+			Icon:     "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg",
+			Order:    4,
 			IsActive: true,
 		},
 	}
@@ -221,23 +227,31 @@ func main() {
 		}
 	}
 
-	// Seed Technologies
+	// Seed Technologies - Based on CV skills
 	technologies := []models.Technology{
 		{Name: "C#", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg", Category: "programming", Order: 1, IsActive: true},
-		{Name: ".NET", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dotnetcore/dotnetcore-original.svg", Category: "framework", Order: 2, IsActive: true},
-		{Name: "Ubuntu", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/ubuntu/ubuntu-plain.svg", Category: "os", Order: 3, IsActive: true},
-		{Name: "RabbitMQ", Icon: "https://www.vectorlogo.zone/logos/rabbitmq/rabbitmq-icon.svg", Category: "messaging", Order: 4, IsActive: true},
-		{Name: "Redis", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg", Category: "database", Order: 5, IsActive: true},
-		{Name: "Google Cloud", Icon: "https://www.vectorlogo.zone/logos/google_cloud/google_cloud-icon.svg", Category: "cloud", Order: 6, IsActive: true},
-		{Name: "Jenkins", Icon: "https://www.vectorlogo.zone/logos/jenkins/jenkins-icon.svg", Category: "ci/cd", Order: 7, IsActive: true},
-		{Name: "Jira", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jira/jira-original.svg", Category: "project-management", Order: 8, IsActive: true},
-		{Name: "Kubernetes", Icon: "https://www.vectorlogo.zone/logos/kubernetes/kubernetes-icon.svg", Category: "container", Order: 9, IsActive: true},
-		{Name: "React", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg", Category: "frontend", Order: 10, IsActive: true},
-		{Name: "Github Actions", Icon: "https://www.vectorlogo.zone/logos/github/github-icon.svg", Category: "ci/cd", Order: 11, IsActive: true},
-		{Name: "Docker", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg", Category: "container", Order: 12, IsActive: true},
-		{Name: "AWS", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original.svg", Category: "cloud", Order: 13, IsActive: true},
-		{Name: "Kafka", Icon: "https://www.vectorlogo.zone/logos/apache_kafka/apache_kafka-icon.svg", Category: "messaging", Order: 14, IsActive: true},
-		{Name: "MongoDB", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg", Category: "database", Order: 15, IsActive: true},
+		{Name: ".NET Core", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dotnetcore/dotnetcore-original.svg", Category: "framework", Order: 2, IsActive: true},
+		{Name: "SQL Server", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/microsoftsqlserver/microsoftsqlserver-plain.svg", Category: "database", Order: 3, IsActive: true},
+		{Name: "PostgreSQL", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg", Category: "database", Order: 4, IsActive: true},
+		{Name: "MongoDB", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mongodb/mongodb-original.svg", Category: "database", Order: 5, IsActive: true},
+		{Name: "Redis", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg", Category: "database", Order: 6, IsActive: true},
+		{Name: "AWS", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg", Category: "cloud", Order: 7, IsActive: true},
+		{Name: "Google Cloud Platform", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/googlecloud/googlecloud-original.svg", Category: "cloud", Order: 8, IsActive: true},
+		{Name: "Azure", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/azure/azure-original.svg", Category: "cloud", Order: 9, IsActive: true},
+		{Name: "Docker", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg", Category: "container", Order: 10, IsActive: true},
+		{Name: "Kubernetes", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kubernetes/kubernetes-plain.svg", Category: "container", Order: 11, IsActive: true},
+		{Name: "RabbitMQ", Icon: "https://www.vectorlogo.zone/logos/rabbitmq/rabbitmq-icon.svg", Category: "messaging", Order: 12, IsActive: true},
+		{Name: "Kafka", Icon: "https://www.vectorlogo.zone/logos/apache_kafka/apache_kafka-icon.svg", Category: "messaging", Order: 13, IsActive: true},
+		{Name: "React", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg", Category: "frontend", Order: 14, IsActive: true},
+		{Name: "TypeScript", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg", Category: "programming", Order: 15, IsActive: true},
+		{Name: "Go", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original-wordmark.svg", Category: "programming", Order: 16, IsActive: true},
+		{Name: "Git", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/git/git-original.svg", Category: "tools", Order: 17, IsActive: true},
+		{Name: "GitHub Actions", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/githubactions/githubactions-original.svg", Category: "ci/cd", Order: 18, IsActive: true},
+		{Name: "Jenkins", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jenkins/jenkins-original.svg", Category: "ci/cd", Order: 19, IsActive: true},
+		{Name: "Jira", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/jira/jira-original.svg", Category: "tools", Order: 20, IsActive: true},
+		{Name: "Linux", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/linux/linux-original.svg", Category: "os", Order: 21, IsActive: true},
+		{Name: "Nginx", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nginx/nginx-original.svg", Category: "server", Order: 22, IsActive: true},
+		{Name: "GraphQL", Icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/graphql/graphql-plain.svg", Category: "api", Order: 23, IsActive: true},
 	}
 
 	for _, tech := range technologies {
@@ -248,46 +262,56 @@ func main() {
 		}
 	}
 
-	// Seed Experiences
+	// Seed Experiences - Based on CV profile.csv
 	experiences := []models.Experience{
 		{
-			Title:       "Full Stack Developer",
-			CompanyName: "MaicoGroup",
-			Icon:        "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=100&h=100&fit=crop&crop=center",
-			IconBg:      "#ffffff",
-			Date:        "Apr 2021 - Jan 2022",
-			Points:      `["Engaged in ongoing communication with end users to gather feedback and requirements, ensuring project updates were tailored to user needs and preferences.", "Played a pivotal role in bug reporting and user support, actively addressing issues and ensuring a seamless user experience throughout software usage.", "Took charge of training new employees on software development processes and best practices, contributing to the growth and efficiency of the team.", "Participating in code reviews and providing constructive feedback to other developers."]`,
+			Title:       "Senior Software Engineer",
+			CompanyName: "Keyloop",
+			Icon:        "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dotnetcore/dotnetcore-original.svg",
+			IconBg:      "#1a1a2e",
+			Date:        "October 2025 - Present",
+			Points:      `["Currently working as Senior Software Engineer at Keyloop", "Contributing to automotive software solutions", "Working with cutting-edge technologies in the automotive industry"]`,
 			Order:       1,
-			IsActive:    true,
-		},
-		{
-			Title:       "Full Stack Developer",
-			CompanyName: "Freelance",
-			Icon:        "https://images.unsplash.com/photo-1553877522-43269d4ea984?w=100&h=100&fit=crop&crop=center",
-			IconBg:      "#ffffff",
-			Date:        "Jan 2022 - Aug 2022",
-			Points:      `["Communicated with clients to understand requirements for custom software projects", "Developed and implemented custom software solutions for two clients, resulting in tangible benefits and enhanced performance", "Ensured client satisfaction through effective follow-up and support."]`,
-			Order:       2,
-			IsActive:    true,
-		},
-		{
-			Title:       "Software Engineer",
-			CompanyName: "Levinci Co., Ltd",
-			Icon:        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=center",
-			IconBg:      "#ffffff",
-			Date:        "Jan 2022 - Aug 2023",
-			Points:      `["Managed two critical ERP projects for finance and employee management.", "Implemented comprehensive project management plans, ensuring successful goal achievement for numerous clients.", "Utilized modern ERP technologies for increased efficiency and accuracy.", "Delivered tailored solutions with a customer-focused approach."]`,
-			Order:       3,
 			IsActive:    true,
 		},
 		{
 			Title:       "Software Engineer",
 			CompanyName: "Terralogic",
-			Icon:        "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=center",
-			IconBg:      "#ffffff",
-			Date:        "Aug 2023 - Present",
-			Points:      `["Facilitated effective communication with international colleagues to ensure project alignment.", "Developed and structured base code and module components, contributing to the project's architecture for optimal system performance.", "Conducted code reviews, providing constructive feedback and innovative solutions.", "Actively contributed to continuous improvement initiatives and fostered a collaborative team environment.", "Embraced learning opportunities to stay updated with the latest technologies and best practices."]`,
+			Icon:        "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/azure/azure-original.svg",
+			IconBg:      "#0078d4",
+			Date:        "August 2023 - September 2025",
+			Points:      `["Spearheaded a digital transformation project for an education platform spanning 11 countries", "Developed and refined three core modules, achieving 99.8% uptime while ensuring seamless integration with existing infrastructure", "Supported a platform with 100,000 users, facilitating over 1 million transactions per month while guaranteeing response times under 200ms", "Contributed from the early development phase, shaping solution architecture and optimizing system performance, resulting in a 25% reduction in infrastructure costs", "Collaborated with a team of over 100 professionals, including developers, designers, and product managers, to align business goals with cutting-edge technology", "Improved project execution efficiency by reducing development cycles by 15% through structured planning and streamlined workflows"]`,
+			Order:       2,
+			IsActive:    true,
+		},
+		{
+			Title:       "Software Engineer",
+			CompanyName: "Levinci CO Ltd.",
+			Icon:        "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg",
+			IconBg:      "#68217a",
+			Date:        "August 2022 - August 2023",
+			Points:      `["Championed the development of two key projects: an ERP system and a financial management platform, streamlining company operations and reducing costs by 20%", "Enhanced workflow efficiency by automating 50% of manual tasks, thereby increasing process accuracy", "Managed a system actively utilized by over 100 internal and external users, maintaining 99.5% uptime to ensure seamless daily operations", "Implemented strategic optimizations that reduced financial reporting errors by 30%, leading to more reliable data-driven decisions"]`,
+			Order:       3,
+			IsActive:    true,
+		},
+		{
+			Title:       "Freelance Web Developer",
+			CompanyName: "Freelancer",
+			Icon:        "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg",
+			IconBg:      "#339933",
+			Date:        "January 2022 - August 2022",
+			Points:      `["Successfully developed and delivered three custom software projects for individual clients, overseeing end-to-end development from requirement analysis to deployment", "Engineered and implemented tailored solutions, ensuring high performance, security, and scalability", "Collaborated closely with clients to refine requirements, provide technical consultation, and integrate feedback for optimal user experience", "Facilitated seamless project handovers with comprehensive documentation, training sessions, and post-launch support", "Achieved 100% client satisfaction, with all projects successfully deployed and operating smoothly"]`,
 			Order:       4,
+			IsActive:    true,
+		},
+		{
+			Title:       "Software Engineer",
+			CompanyName: "MAICO GROUP",
+			Icon:        "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg",
+			IconBg:      "#2496ed",
+			Date:        "April 2021 - January 2022",
+			Points:      `["Developed and delivered two major projects: CRM and Call Management, effectively meeting business requirements", "Managed and supported a system servicing over 10,000 customers, along with nearly 50 internal users, primarily company employees", "Engaged closely with end users to collect and implement over 100 feature requests, enhancing user satisfaction by 30%", "Reduced bug occurrence by 40%, ensuring system stability while receiving positive user feedback", "Utilized JIRA for 80% of project management and issue tracking, ensuring smooth collaboration and progress monitoring"]`,
+			Order:       5,
 			IsActive:    true,
 		},
 	}
@@ -303,29 +327,29 @@ func main() {
 	// Seed Testimonials
 	testimonials := []models.Testimonial{
 		{
-			Testimonial: "I thought it was impossible to make a website as beautiful as our product, but Moclaw proved me wrong.",
-			Name:        "Sara Lee",
-			Designation: "CFO",
-			Company:     "Acme Co",
-			Image:       "https://randomuser.me/api/portraits/women/4.jpg",
+			Testimonial: "Moclaw is an exceptional developer who consistently delivers high-quality solutions. His expertise in .NET and microservices architecture has been invaluable to our education platform serving 100,000+ users across 11 countries.",
+			Name:        "Tech Lead",
+			Designation: "Senior Technical Lead",
+			Company:     "Terralogic",
+			Image:       "https://randomuser.me/api/portraits/men/32.jpg",
 			Order:       1,
 			IsActive:    true,
 		},
 		{
-			Testimonial: "I've never met a web developer who truly cares about their clients' success like Moclaw does.",
-			Name:        "Chris Brown",
-			Designation: "COO",
-			Company:     "DEF Corp",
-			Image:       "https://randomuser.me/api/portraits/men/5.jpg",
+			Testimonial: "Working with Moclaw was a great experience. He delivered our ERP system on time, automating 50% of manual tasks and reducing costs by 20%. The quality exceeded our expectations. Highly recommended!",
+			Name:        "Project Manager",
+			Designation: "PM",
+			Company:     "Levinci",
+			Image:       "https://randomuser.me/api/portraits/women/44.jpg",
 			Order:       2,
 			IsActive:    true,
 		},
 		{
-			Testimonial: "After Moclaw optimized our website, our traffic increased by 50%. We can't thank them enough!",
-			Name:        "Lisa Wang",
-			Designation: "CTO",
-			Company:     "456 Enterprises",
-			Image:       "https://randomuser.me/api/portraits/women/6.jpg",
+			Testimonial: "Moclaw's technical skills and problem-solving abilities are outstanding. He helped us achieve 99.8% uptime on our platform and reduced infrastructure costs by 25%. A true professional!",
+			Name:        "CTO",
+			Designation: "Chief Technology Officer",
+			Company:     "Education Platform",
+			Image:       "https://randomuser.me/api/portraits/men/67.jpg",
 			Order:       3,
 			IsActive:    true,
 		},
@@ -339,33 +363,51 @@ func main() {
 		}
 	}
 
-	// Seed Projects
+	// Seed Projects - Based on actual work experience
 	projects := []models.Project{
 		{
-			Name:           "Car Rent",
-			Description:    "Web-based platform that allows users to search, book, and manage car rentals from various providers, providing a convenient and efficient solution for transportation needs.",
-			Tags:           `[{"name":"react","color":"blue-text-gradient"},{"name":"mongodb","color":"green-text-gradient"},{"name":"tailwind","color":"pink-text-gradient"}]`,
-			Image:          "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=600&fit=crop&crop=center",
-			SourceCodeLink: "https://github.com/",
+			Name:           "Education Platform",
+			Description:    "A digital transformation project for an education platform spanning 11 countries. Supports 100,000+ users with over 1 million transactions per month, achieving 99.8% uptime and response times under 200ms. Reduced infrastructure costs by 25%.",
+			Tags:           `[{"name":".NET Core","color":"blue-text-gradient"},{"name":"Microservices","color":"green-text-gradient"},{"name":"AWS","color":"pink-text-gradient"}]`,
+			Image:          "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&h=600&fit=crop&crop=center",
+			SourceCodeLink: "https://github.com/Moclaw",
 			Order:          1,
 			IsActive:       true,
 		},
 		{
-			Name:           "Job IT",
-			Description:    "Web application that enables users to search for job openings, view estimated salary ranges for positions, and locate available jobs based on their current location.",
-			Tags:           `[{"name":"react","color":"blue-text-gradient"},{"name":"restapi","color":"green-text-gradient"},{"name":"scss","color":"pink-text-gradient"}]`,
-			Image:          "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800&h=600&fit=crop&crop=center",
-			SourceCodeLink: "https://github.com/",
+			Name:           "ERP & Financial Management System",
+			Description:    "Enterprise Resource Planning system that streamlined company operations and reduced costs by 20%. Automated 50% of manual tasks, reduced financial reporting errors by 30%, and maintained 99.5% uptime for 100+ users.",
+			Tags:           `[{"name":"C#","color":"blue-text-gradient"},{"name":"SQL Server","color":"green-text-gradient"},{"name":".NET","color":"pink-text-gradient"}]`,
+			Image:          "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800&h=600&fit=crop&crop=center",
+			SourceCodeLink: "https://github.com/Moclaw",
 			Order:          2,
 			IsActive:       true,
 		},
 		{
-			Name:           "Trip Guide",
-			Description:    "A comprehensive travel booking platform that allows users to book flights, hotels, and rental cars, and offers curated recommendations for popular destinations.",
-			Tags:           `[{"name":"nextjs","color":"blue-text-gradient"},{"name":"supabase","color":"green-text-gradient"},{"name":"css","color":"pink-text-gradient"}]`,
-			Image:          "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&h=600&fit=crop&crop=center",
-			SourceCodeLink: "https://github.com/",
+			Name:           "CRM & Call Management System",
+			Description:    "Customer Relationship Management and Call Management system servicing over 10,000 customers and 50 internal users. Implemented 100+ feature requests, enhanced user satisfaction by 30%, and reduced bug occurrence by 40%.",
+			Tags:           `[{"name":".NET","color":"blue-text-gradient"},{"name":"SQL Server","color":"green-text-gradient"},{"name":"JIRA","color":"pink-text-gradient"}]`,
+			Image:          "https://images.unsplash.com/photo-1553877522-43269d4ea984?w=800&h=600&fit=crop&crop=center",
+			SourceCodeLink: "https://github.com/Moclaw",
 			Order:          3,
+			IsActive:       true,
+		},
+		{
+			Name:           "NodeTL - Visual ETL Platform",
+			Description:    "A powerful, visual data mapping and transformation platform for building ETL pipelines and automating data workflows. Features drag-and-drop workflow designer, visual schema mapping, AI-assisted mapping, RBAC authentication, and Docker/Kubernetes deployment support.",
+			Tags:           `[{"name":"Go","color":"blue-text-gradient"},{"name":"React","color":"green-text-gradient"},{"name":"MongoDB","color":"pink-text-gradient"}]`,
+			Image:          "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&h=600&fit=crop&crop=center",
+			SourceCodeLink: "https://github.com/nodetl/nodetl",
+			Order:          4,
+			IsActive:       true,
+		},
+		{
+			Name:           "Portfolio Website",
+			Description:    "Personal portfolio website built with React, Three.js for 3D animations, and Go backend with PostgreSQL. Features admin panel, AWS S3 integration for media storage, Redis caching, and Docker deployment.",
+			Tags:           `[{"name":"React","color":"blue-text-gradient"},{"name":"Go","color":"green-text-gradient"},{"name":"Three.js","color":"pink-text-gradient"}]`,
+			Image:          "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=600&fit=crop&crop=center",
+			SourceCodeLink: "https://github.com/Moclaw/portfolio-be",
+			Order:          5,
 			IsActive:       true,
 		},
 	}

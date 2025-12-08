@@ -32,11 +32,12 @@ func main() {
 	// Update swagger info with dynamic host
 	docs.SwaggerInfo.Host = cfg.Host + ":" + cfg.Port
 
-	// Initialize database
-	db, err := database.InitSQLite(cfg.DatabaseURL)
+	// Initialize database (supports both PostgreSQL and SQLite)
+	db, err := database.InitDatabase(cfg.DatabaseType, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
+	log.Printf("Database initialized with type: %s", cfg.DatabaseType)
 
 	// Run migrations
 	if err := database.Migrate(db); err != nil {
@@ -50,6 +51,22 @@ func main() {
 			log.Fatal("Failed to seed database:", err)
 		}
 		log.Println("Database seeded successfully!")
+	}
+
+	// Initialize Redis if enabled
+	if cfg.RedisConfig.Enabled {
+		redisClient, err := database.NewRedisClient(database.RedisConfig{
+			Host:     cfg.RedisConfig.Host,
+			Port:     cfg.RedisConfig.Port,
+			Password: cfg.RedisConfig.Password,
+			DB:       cfg.RedisConfig.DB,
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Redis: %v", err)
+		} else {
+			defer redisClient.Close()
+			log.Println("Redis connected successfully!")
+		}
 	}
 
 	// Initialize S3 service

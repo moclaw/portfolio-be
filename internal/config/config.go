@@ -138,9 +138,17 @@ func Load() *Config {
 
 	// Load config with fallback to environment variables
 	config := &Config{
-		Port:        getEnv("PORT", "5303"),
-		Host:        getEnv("HOST", "localhost"),
-		DatabaseURL: getSecretOrEnv(secretData, "database_url", "DATABASE_URL", "portfolio.db"),
+		Port:         getEnv("PORT", "5303"),
+		Host:         getEnv("HOST", "localhost"),
+		DatabaseType: getEnv("DATABASE_TYPE", "sqlite"),
+		DatabaseURL:  getSecretOrEnv(secretData, "database_url", "DATABASE_URL", "portfolio.db"),
+		RedisConfig: RedisConfig{
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnv("REDIS_PORT", "6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       0,
+			Enabled:  getEnv("REDIS_ENABLED", "false") == "true",
+		},
 		S3Config: S3Config{
 			Endpoint:        getSecretOrEnv(secretData, "s3_endpoint", "S3_ENDPOINT", defaultS3Endpoint),
 			Region:          getSecretOrEnv(secretData, "s3_region", "S3_REGION", "us-east-1"),
@@ -148,6 +156,7 @@ func Load() *Config {
 			AccessKeyID:     getSecretOrEnv(secretData, "s3_access_key_id", "S3_ACCESS_KEY_ID", defaultS3AccessKey),
 			SecretAccessKey: getSecretOrEnv(secretData, "s3_secret_access_key", "S3_SECRET_ACCESS_KEY", defaultS3SecretKey),
 			ForcePathStyle:  true,
+			PublicURL:       getEnv("S3_PUBLIC_URL", "https://media.moclawr.com"),
 		},
 		JWTConfig: JWTConfig{
 			SecretKey: getSecretOrEnv(secretData, "jwt_secret_key", "JWT_SECRET_KEY", defaultJWTSecret),
