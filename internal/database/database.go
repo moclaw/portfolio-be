@@ -33,17 +33,9 @@ func InitPostgres(databaseURL string) (*gorm.DB, error) {
 	return db, nil
 }
 
-// InitDatabase initializes database based on type (postgres or sqlite)
+// InitDatabase initializes PostgreSQL database connection
 func InitDatabase(dbType, databaseURL string) (*gorm.DB, error) {
-	switch dbType {
-	case "postgres", "postgresql":
-		return InitPostgres(databaseURL)
-	case "sqlite":
-		return InitSQLite(databaseURL)
-	default:
-		// Default to SQLite for backward compatibility
-		return InitSQLite(databaseURL)
-	}
+	return InitPostgres(databaseURL)
 }
 
 // Migrate runs database migrations
